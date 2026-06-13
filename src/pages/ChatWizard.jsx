@@ -78,6 +78,9 @@ export default function ChatWizard() {
   const [messages, setMessages] = useState([]);
   const [currentFase, setCurrentFase] = useState('DATOS_NOMBRE');
   const [businessData, setBusinessData] = useState(null);
+  // Cuando el usuario pide "ajustar", guardamos qué fase de generación rehacer
+  // y su próximo mensaje se usa como instrucción extra para regenerar.
+  const [ajustePendiente, setAjustePendiente] = useState(null);
 
   const getSystemPrompt = (biz) => `
     Eres el Estratega Maestro de Ideastik.
@@ -123,7 +126,7 @@ export default function ChatWizard() {
     await supabase.from('wizard_messages').insert([{ business_id: bId, role, content, widget }]);
   };
 
-  const startPhase = async (fase, biz = businessData) => {
+  const startPhase = async (fase, biz = businessData, ajuste = null) => {
     const config = WIZARD_PHASES[fase];
     if (!config) return;
 
@@ -133,7 +136,7 @@ export default function ChatWizard() {
         setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: config.question }]);
       }
       try {
-        await handleAIGeneration(fase, biz);
+        await handleAIGeneration(fase, biz, false, ajuste);
       } catch (e) {
         console.error("Fallo crítico en generación:", e);
         setIsTyping(false);
@@ -163,6 +166,34 @@ export default function ChatWizard() {
       startPhase(currentFase);
       return;
     }
+
+    // El usuario pidió ajustar la propuesta de valor, narrativa o estrategia.
+    // No avanzamos: le pedimos que diga qué cambiar.
+    const botonesAjuste = {
+      'Ajustemos algo': 'NARRATIVA_GENERAR',
+      'Revisar detalles': 'ESTRATEGIA_GENERAR',
+      'Quiero ajustar estas propuestas': 'PV_GENERAR',
+    };
+    if (botonesAjuste[text]) {
+      setMessages(prev => [...prev,
+        { id: 'u-' + Date.now(), role: 'user', content: text },
+        { id: 'ai-' + Date.now(), role: 'agent', content: 'Claro. Cuéntame qué te gustaría ajustar y lo regenero tomando eso en cuenta.' }
+      ]);
+      setAjustePendiente(botonesAjuste[text]);
+      return;
+    }
+
+    // Si hay un ajuste pendiente, este texto es la instrucción para regenerar.
+    if (ajustePendiente) {
+      const faseRegen = ajustePendiente;
+      setAjustePendiente(null);
+      setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+      setCurrentFase(faseRegen);
+      // Pasamos la instrucción del usuario como ajuste para el prompt
+      startPhase(faseRegen, businessData, text);
+      return;
+    }
+
     const config = WIZARD_PHASES[currentFase];
     const nextFase = config.next;
 
@@ -200,7 +231,7 @@ export default function ChatWizard() {
     startPhase(nextFase, activeBiz);
   };
 
-  const handleAIGeneration = async (fase, biz, retry = false) => {
+  const handleAIGeneration = async (fase, biz, retry = false, ajuste = null) => {
     const config = WIZARD_PHASES[fase];
     if (config.aiTask === 'parrilla') { await finalizeParrilla(biz); return; }
 
@@ -221,12 +252,17 @@ export default function ChatWizard() {
       }
     }
 
+    // Si el usuario pidió un ajuste, lo añadimos como instrucción al prompt.
+    if (ajuste) {
+      promptFinal += `\n\nIMPORTANTE: El usuario pidió este ajuste sobre la versión anterior: "${ajuste}". Aplícalo y vuelve a generar respetando el mismo formato JSON.`;
+    }
+
     // generarJSON ahora devuelve objeto/array YA PARSEADO, o null si falló.
     const result = await generarJSON(getSystemPrompt(biz), [{ role: 'user', content: promptFinal }], tokens);
 
     // Si no hubo respuesta parseable, reintentamos una vez; si vuelve a fallar, error controlado.
     if (result === null || result === undefined) {
-      if (!retry) return handleAIGeneration(fase, biz, true);
+      if (!retry) return handleAIGeneration(fase, biz, true, ajuste);
       throw new Error("La IA no devolvió un JSON válido tras reintentar.");
     }
 
@@ -316,18 +352,39 @@ export default function ChatWizard() {
         )) : (
           <div className="p-4 text-center text-xs text-gray-400 italic">No se pudieron cargar las opciones. Reintenta.</div>
         )}
+        {!disabled && list.length > 0 && (
+          <button onClick={() => onSelect('Quiero ajustar estas propuestas')} className="text-xs text-primary font-medium hover:underline self-start mt-1 flex items-center gap-1">
+            <SafeIcon name="RefreshCw" className="w-3 h-3" /> Ninguna me convence, ajustar
+          </button>
+        )}
       </div>
     );
   };
 
   const PilaresGridWidget = ({ data, onSelect, disabled }) => {
     const [selected, setSelected] = useState([]);
+    const [showWhy, setShowWhy] = useState(false);
     const pilares = extraerArray(data);
 
     const toggle = (i) => !disabled && setSelected(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
 
     return (
       <div className="mt-4 space-y-4 w-full">
+        {!disabled && (
+          <div className="rounded-xl bg-primary/5 border border-primary/10 overflow-hidden">
+            <button onClick={() => setShowWhy(v => !v)} className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-primary">
+              <span className="flex items-center gap-1.5"><SafeIcon name="HelpCircle" className="w-3.5 h-3.5" /> ¿Por qué necesitas pilares?</span>
+              <SafeIcon name={showWhy ? "ChevronUp" : "ChevronDown"} className="w-3.5 h-3.5" />
+            </button>
+            {showWhy && (
+              <div className="px-3 pb-3 text-[11px] text-gray-600 leading-relaxed space-y-1">
+                <p>• <b>Evitan el bloqueo creativo:</b> siempre tienes de qué hablar.</p>
+                <p>• <b>Construyen autoridad por repetición:</b> te vuelves referente en tus temas.</p>
+                <p>• <b>Educan a tu cliente</b> y hacen tu marca reconocible.</p>
+              </div>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           {pilares.length > 0 ? pilares.map((p, i) => (
             <div key={i} onClick={() => toggle(i)} className={cn("p-3 rounded-xl border-2 transition-all cursor-pointer h-full flex flex-col", selected.includes(i) ? "border-primary bg-primary/5 shadow-inner" : "border-gray-100 bg-white shadow-sm")}>
@@ -451,37 +508,4 @@ export default function ChatWizard() {
 
       {/* COLUMNA DE CONVERSACIÓN */}
       <div className="flex flex-col h-full flex-1 relative max-w-2xl mx-auto w-full">
-      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center gap-3 shrink-0 z-10">
-        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary"><SafeIcon name="Zap" className="w-5 h-5" /></div>
-        <div>
-          <h2 className="font-heading font-bold text-gray-900 leading-none">Estratega Ideastik</h2>
-          <span className="text-[11px] text-success font-medium">● En línea</span>
-        </div>
-      </header>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 md:px-8 py-6 space-y-6 pb-28">
-        <AnimatePresence initial={false}>
-          {messages.map((msg, idx) => {
-            const isWidgetFrozen = idx !== messages.length - 1;
-            return (
-              <motion.div key={msg.id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white border border-gray-100 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
-                {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
-                {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
-                {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
-                {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-        {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#FAFAF8] via-[#FAFAF8]/95 to-transparent">
-        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
-          <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
-          <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
-        </form>
-      </div>
-      </div>
-    </div>
-  );
-}
+      <header classN

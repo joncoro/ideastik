@@ -51,6 +51,25 @@ export default function Composer() {
     await db.updatePost(postId, { copy: newCopy, status: 'READY' });
   };
 
+  // Inserta un llamado a la acción al final del copy. Usa el WhatsApp del negocio
+  // si está configurado; si no, deja una plantilla para que el usuario lo complete.
+  const handleInsertCTA = (tipo) => {
+    const wpp = currentBusiness?.whatsapp || currentBusiness?.telefono;
+    let cta = '';
+    if (tipo === 'whatsapp') {
+      cta = wpp
+        ? `\n\n📲 Escríbeme por WhatsApp al ${wpp} y te ayudo a elegir lo ideal para ti.`
+        : `\n\n📲 Escríbeme por WhatsApp [tu número aquí] y te ayudo a elegir lo ideal para ti.`;
+    } else if (tipo === 'pedido') {
+      cta = `\n\n🛒 Haz tu pedido hoy: [link o número]. Cupos/unidades limitadas.`;
+    } else if (tipo === 'perfil') {
+      cta = `\n\n👀 Mira más en mi perfil y guarda este post si te sirvió.`;
+    }
+    const nuevo = (copy || '').trimEnd() + cta;
+    setCopy(nuevo);
+    db.updatePost(postId, { copy: nuevo, status: 'READY' });
+  };
+
   if (loading || !post) return <div className="p-20 text-center"><Spinner /></div>;
 
   return (
@@ -90,31 +109,4 @@ export default function Composer() {
                 value={copy} 
                 onChange={e => setCopy(e.target.value)} 
                 className="border-0 focus-visible:ring-0 min-h-[400px] p-6 text-base leading-relaxed" 
-                placeholder="Tu copy aparecerá aquí..." 
-              />
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className="aspect-[4/5] bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-200 relative group overflow-hidden">
-              {post.image_url ? (
-                <img src={post.image_url} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-center p-8">
-                  <SafeIcon name="Image" className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-sm text-gray-400 font-medium tracking-tight">Previsualización del Post</p>
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
-      </div>
-
-      <WizardAgent 
-        context="editor" 
-        data={post} 
-        onApplySuggestion={handleApplySuggestion} 
-      />
-    </div>
-  );
-}
+                placeholder="Tu copy aparecerá
