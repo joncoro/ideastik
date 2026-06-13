@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 export default function Settings() {
   const { currentBusiness, refreshBusiness } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [formData, setFormData] = useState({
     nombre: '',
@@ -59,7 +60,8 @@ export default function Settings() {
     try {
       await db.updateBusiness(currentBusiness.id, formData);
       await refreshBusiness();
-      alert('Información del negocio actualizada correctamente.');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error("Error al guardar cambios:", err);
       alert('Hubo un error al guardar los cambios. Por favor intenta de nuevo.');
@@ -82,7 +84,8 @@ export default function Settings() {
         });
 
       if (error) throw error;
-      alert('Preferencias de recordatorio guardadas correctamente.');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error("Error al guardar recordatorios:", err);
       alert('No se pudieron guardar las preferencias de recordatorio.');
@@ -92,9 +95,9 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h2 className="text-3xl font-heading font-bold mb-1">Ajustes</h2>
+        <h2 className="text-2xl font-heading font-bold mb-1">Ajustes</h2>
         <p className="text-gray-500 text-sm">Configura la identidad y notificaciones de <span className="text-primary font-bold">{currentBusiness?.nombre}</span>.</p>
       </div>
 
@@ -168,8 +171,8 @@ export default function Settings() {
           </section>
 
           <div className="flex justify-end pt-4 border-t border-gray-100">
-            <Button type="submit" isLoading={loading} className="px-8 shadow-lg shadow-primary/20">
-              Guardar cambios
+            <Button type="submit" variant={saved ? 'success' : 'primary'} isLoading={loading} className="px-8 shadow-lg shadow-primary/20">
+              {saved ? (<><SafeIcon name="Check" className="w-4 h-4 mr-1.5" /> Guardado</>) : 'Guardar cambios'}
             </Button>
           </div>
         </form>
@@ -248,8 +251,8 @@ export default function Settings() {
           </Card>
 
           <div className="flex justify-end pt-4 border-t border-gray-100">
-            <Button onClick={handleSaveReminders} isLoading={loading} className="px-8 shadow-lg shadow-primary/20">
-              Guardar preferencias
+            <Button onClick={handleSaveReminders} variant={saved ? 'success' : 'primary'} isLoading={loading} className="px-8 shadow-lg shadow-primary/20">
+              {saved ? (<><SafeIcon name="Check" className="w-4 h-4 mr-1.5" /> Guardado</>) : 'Guardar preferencias'}
             </Button>
           </div>
         </div>
