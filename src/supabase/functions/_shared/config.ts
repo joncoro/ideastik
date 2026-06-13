@@ -15,12 +15,12 @@ function envNum(key: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export const CURRENCY = Deno.env.get('MP_CURRENCY') ?? 'ARS';
+export const CURRENCY = Deno.env.get('MP_CURRENCY') ?? 'COP';
 
 // Plan mensual recurrente (preapproval).
 export const PLAN_MENSUAL = {
   reason: 'Ideastik — Plan Mensual',
-  amount: envNum('MP_PLAN_PRICE', 9900),
+  amount: envNum('MP_PLAN_PRICE', 29900),
   frequency: 1,
   frequencyType: 'months' as const,
 };
@@ -34,19 +34,19 @@ export const CREDIT_PACKS: Record<string, CreditPack> = {
     id: 'pack_10',
     title: 'Pack 10 publicaciones',
     credits: 10,
-    price: envNum('MP_PACK_10_PRICE', 4900),
+    price: envNum('MP_PACK_10_PRICE', 19900),
   },
   pack_30: {
     id: 'pack_30',
     title: 'Pack 30 publicaciones',
     credits: 30,
-    price: envNum('MP_PACK_30_PRICE', 11900),
+    price: envNum('MP_PACK_30_PRICE', 49900),
   },
   pack_60: {
     id: 'pack_60',
     title: 'Pack 60 publicaciones',
     credits: 60,
-    price: envNum('MP_PACK_60_PRICE', 19900),
+    price: envNum('MP_PACK_60_PRICE', 89900),
   },
 };
 
