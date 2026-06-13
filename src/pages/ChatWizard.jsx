@@ -156,6 +156,11 @@ export default function ChatWizard() {
         // Cada widget de selección recibe el ARRAY ya extraído
         if (fase === 'PV_ELEGIR') widgetData = extraerArray(biz?.pv_opciones);
         if (fase === 'PILARES_ELEGIR') widgetData = extraerArray(biz?.pilares);
+        if (fase === 'ESTRATEGIA_CONFIRMAR') {
+          const estObj = extraerObjeto(biz?.estrategia);
+          const est = estObj.estrategia && typeof estObj.estrategia === 'object' ? estObj.estrategia : estObj;
+          widgetData = { estrategia: est, opciones: config.options };
+        }
 
         const widget = config.widget ? { type: config.widget, data: widgetData } : null;
         const msg = { id: Date.now().toString(), role: 'agent', content: config.question, widget };
@@ -436,6 +441,74 @@ export default function ChatWizard() {
     );
   };
 
+  // ---------- TARJETA DE ESTRATEGIA (mapa visual) ----------
+  const EstrategiaWidget = ({ data, onSelect, disabled }) => {
+    const est = (data && data.estrategia) || {};
+    const opciones = (data && data.opciones) || ['¡Vamos!', 'Revisar detalles'];
+    const formatos = Array.isArray(est.formatos) ? est.formatos : [];
+    const tieneData = est.canalPrincipal || formatos.length > 0 || est.frecuencia || est.diasHoras;
+    return (
+      <div className="mt-4 w-full space-y-4">
+        <Card className="p-0 overflow-hidden border-primary/15 shadow-sm">
+          <div className="bg-gradient-to-r from-primary to-[#8B5CF6] px-5 py-3">
+            <p className="text-white text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
+              <SafeIcon name="Map" className="w-3.5 h-3.5" /> Tu mapa estratégico
+            </p>
+          </div>
+          {tieneData ? (
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-primary/5 p-3">
+                  <p className="text-[10px] font-bold text-primary uppercase mb-1 flex items-center gap-1"><SafeIcon name="Send" className="w-3 h-3" /> Canal principal</p>
+                  <p className="text-sm font-bold text-gray-900">{est.canalPrincipal || '\u2014'}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1"><SafeIcon name="Share2" className="w-3 h-3" /> Secundario</p>
+                  <p className="text-sm font-bold text-gray-700">{est.canalSecundario || '\u2014'}</p>
+                </div>
+              </div>
+              {formatos.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 flex items-center gap-1"><SafeIcon name="Grid" className="w-3 h-3" /> Formatos</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {formatos.map((f, i) => (
+                      <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-success/10 text-success font-medium">{f}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-start gap-2">
+                  <SafeIcon name="Repeat" className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                  <p className="text-xs text-gray-700"><span className="font-bold text-gray-500 uppercase text-[10px] mr-1">Frecuencia:</span>{est.frecuencia || '\u2014'}</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <SafeIcon name="Calendar" className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                  <p className="text-xs text-gray-700 leading-relaxed"><span className="font-bold text-gray-500 uppercase text-[10px] mr-1">Días y horas:</span>{est.diasHoras || '\u2014'}</p>
+                </div>
+                {est.tono && (
+                  <div className="flex items-start gap-2">
+                    <SafeIcon name="MessageSquare" className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    <p className="text-xs text-gray-700"><span className="font-bold text-gray-500 uppercase text-[10px] mr-1">Tono:</span>{est.tono}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 text-center text-xs text-gray-400 italic">No se pudo cargar la estrategia. Puedes revisarla o continuar.</div>
+          )}
+        </Card>
+        <div className="flex flex-wrap gap-2">
+          {opciones.map(opt => (
+            <button key={opt} disabled={disabled} onClick={() => onSelect(opt)} className={cn("px-4 py-2 rounded-full text-sm font-medium transition-all border shadow-sm", disabled ? "bg-gray-100 text-gray-400" : opt.charAt(0) === '\u00a1' ? "bg-primary text-white border-primary hover:bg-primary/90" : "bg-white border-primary/20 text-primary hover:bg-primary hover:text-white")}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // ---------- PANEL VISUAL DINÁMICO (lado derecho, estilo Webflow) ----------
   // Define el contenido del panel según la fase actual: título, subtítulo y arte.
   const panelByPhase = (fase) => {
@@ -540,6 +613,7 @@ export default function ChatWizard() {
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'estrategia_card' && <EstrategiaWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
               </motion.div>
             );
           })}

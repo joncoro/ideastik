@@ -87,9 +87,9 @@ export const WIZARD_PHASES = {
     prompt: "Define la estrategia. Responde SOLO con JSON válido: {\"estrategia\": {\"canalPrincipal\": \"string\", \"frecuencia\": 3, \"horarios\": \"string\", \"tono\": \"string\"}}"
   },
   ESTRATEGIA_CONFIRMAR: {
-    question: "¡Listo! Ya tenemos el mapa estratégico. ¿Damos el último paso?",
+    question: "¡Listo! Este es tu mapa estratégico, hecho a la medida de tu negocio. ¿Damos el último paso?",
     next: 'DIAS_ELEGIR',
-    widget: 'chips',
+    widget: 'estrategia_card',
     options: ['¡Vamos!', 'Revisar detalles']
   },
   DIAS_ELEGIR: {
