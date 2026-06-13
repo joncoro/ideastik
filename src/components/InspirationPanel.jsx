@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { aiService } from '../lib/mockAi';
+import { generarJSON } from '../lib/ia';
 import { db } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { Button, Card, Badge, Skeleton } from './ui/Components';
@@ -12,31 +12,50 @@ export default function InspirationPanel({ isOpen, onClose, onIdeaSelected }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Saca el array de pilares: usa los seleccionados; si no, los del objeto {pilares:[...]}.
+  const getPilares = (biz) => {
+    if (Array.isArray(biz?.pilares_seleccionados) && biz.pilares_seleccionados.length) return biz.pilares_seleccionados;
+    const p = biz?.pilares;
+    if (Array.isArray(p)) return p;
+    if (p && Array.isArray(p.pilares)) return p.pilares;
+    return [];
+  };
+
   const loadSuggestions = async () => {
     if (!currentBusiness) return;
     setLoading(true);
     try {
-      // Simulamos la llamada a la Edge Function que consulta a Anthropic
-      const res = await aiService.generarIdeas(currentBusiness.pilares);
-      
-      // Aplanamos el objeto de ideas para mostrar una lista mezclada y dinámica
-      const allIdeas = [];
-      Object.entries(res.ideas).forEach(([pilarName, ideas]) => {
-        const pilar = currentBusiness.pilares.find(p => p.nombre === pilarName);
-        ideas.forEach(idea => {
-          allIdeas.push({
-            ...idea,
-            pilarName,
-            pilarTipo: pilar?.tipo || 'otro',
-            id: Math.random().toString(36).substr(2, 9)
-          });
-        });
-      });
-      
-      // Barajamos para que cada vez parezca nuevo
+      const pilares = getPilares(currentBusiness);
+      if (pilares.length === 0) { setSuggestions([]); setLoading(false); return; }
+      const b = currentBusiness;
+      const system = `Eres un estratega de contenido senior de Ideastik para el negocio "${b.nombre || ''}". Vende ${b.que_hace || 'su producto o servicio'}; su diferencial real es ${b.diferente || 'su forma de trabajar'}; sector ${b.sector || 'general'}; cliente ideal ${b.cliente_ideal || 'su audiencia'}.${b.propuesta_valor ? ` Propuesta de valor: ${b.propuesta_valor}.` : ''} Reglas: nunca el precio como diferenciador; nunca "no vendemos X, vendemos Y"; el diferencial vive en la percepción (criterio, asesoría, personalización, conocimiento). Cada idea debe ser específica a ESTE negocio y a su cliente ideal, nada genérico. Responde SOLO con JSON válido.`;
+      const banco = {
+        autoridad: 'qué decisión técnica tomas que el cliente no entendería, qué error común no cometes',
+        conexion: 'qué te llevó a empezar, qué pasó esta semana que te recordó por qué lo haces',
+        venta: 'qué tienes disponible esta semana, cuál es tu producto o servicio estrella',
+        prueba_social: 'quién compró esta semana, quién contaría su experiencia',
+        educacion: 'qué pregunta te hacen siempre, qué mito existe en tu sector',
+      };
+      const guia = pilares.map(p => `"${p.nombre}" (${p.tipo}: detona con — ${banco[p.tipo] || 'algo útil para el cliente'})`).join('; ');
+      const user = `Genera 1 idea de post FRESCA y concreta para CADA uno de estos pilares: ${guia}. Cada 'gancho' y 'desc' corto (máximo 14 palabras), específico al cliente ideal. Varía los formatos. Responde SOLO con JSON válido y completo: {"ideas": [{"pilarName": "nombre exacto del pilar", "tipo": "tipo del pilar", "gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]}`;
+      const res = await generarJSON(system, [{ role: 'user', content: user }], 1400);
+      const arr = Array.isArray(res) ? res : (res && Array.isArray(res.ideas) ? res.ideas : []);
+      const allIdeas = arr.map(idea => {
+        const nombre = idea.pilarName || idea.pilar || idea.nombre || '';
+        const match = pilares.find(p => p.nombre === nombre);
+        return {
+          gancho: idea.gancho,
+          desc: idea.desc,
+          formato: idea.formato || 'Reel',
+          pilarName: nombre,
+          pilarTipo: idea.tipo || idea.pilarTipo || match?.tipo || 'educacion',
+          id: Math.random().toString(36).substr(2, 9)
+        };
+      }).filter(i => i.gancho);
       setSuggestions(allIdeas.sort(() => Math.random() - 0.5).slice(0, 5));
     } catch (e) {
       console.error(e);
+      setSuggestions([]);
     } finally {
       setLoading(false);
     }
