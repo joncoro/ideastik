@@ -10,12 +10,12 @@ import supabase from '../supabase/supabase';
 // Paquetes de créditos para mostrar en la UI. El precio REAL lo valida el
 // servidor (config.ts); acá solo es para presentación. Mantener los ids en sync.
 export const CREDIT_PACKS = [
-  { id: 'pack_10', credits: 10, label: '10 publicaciones', price: 19900 },
-  { id: 'pack_30', credits: 30, label: '30 publicaciones', price: 49900, destacado: true },
-  { id: 'pack_60', credits: 60, label: '60 publicaciones', price: 89900 },
+  { id: 'pack_10', credits: 10, label: '10 publicaciones', price: 9900 },
+  { id: 'pack_30', credits: 30, label: '30 publicaciones', price: 39900, destacado: true },
+  { id: 'pack_60', credits: 60, label: '60 publicaciones', price: 79900 },
 ];
 
-export const PLAN_MENSUAL_PRECIO = 29900;
+export const PLAN_MENSUAL_PRECIO = 19900;
 export const MONEDA = 'COP';
 
 /** Inicia la suscripción mensual y redirige a Mercado Pago. */

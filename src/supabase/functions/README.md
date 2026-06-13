@@ -29,8 +29,8 @@ supabase secrets set MP_WEBHOOK_SECRET="..."            # "Secreto de la firma" 
 supabase secrets set MP_CURRENCY="COP"                  # COP (Colombia). También: ARS | CLP | MXN | BRL | PEN | UYU
 supabase secrets set APP_URL="https://ideastik.netlify.app"
 # Precios opcionales (si no, usa los defaults de config.ts — en COP):
-# supabase secrets set MP_PLAN_PRICE="29900"
-# supabase secrets set MP_PACK_10_PRICE="19900"
+# supabase secrets set MP_PLAN_PRICE="19900"
+# supabase secrets set MP_PACK_10_PRICE="9900"
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` los inyecta
