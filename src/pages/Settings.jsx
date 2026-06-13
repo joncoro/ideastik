@@ -15,7 +15,8 @@ export default function Settings() {
     nombre: '',
     sector: '',
     ciudad: '',
-    que_hace: '' // Corregido camelCase a snake_case para DB
+    que_hace: '', // Corregido camelCase a snake_case para DB
+    whatsapp: ''
   });
 
   const [reminderSettings, setReminderSettings] = useState({
@@ -31,7 +32,8 @@ export default function Settings() {
         nombre: currentBusiness.nombre || '',
         sector: currentBusiness.sector || '',
         ciudad: currentBusiness.ciudad || '',
-        que_hace: currentBusiness.que_hace || ''
+        que_hace: currentBusiness.que_hace || '',
+        whatsapp: currentBusiness.whatsapp || ''
       });
       loadReminderSettings();
     }
@@ -150,6 +152,16 @@ export default function Settings() {
                 onChange={e => setFormData({ ...formData, que_hace: e.target.value })} 
                 className="min-h-[100px]" 
               />
+            </div>
+            <div className="space-y-2">
+              <Label>WhatsApp para ventas</Label>
+              <Input
+                type="tel"
+                value={formData.whatsapp}
+                onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+                placeholder="Ej. +57 300 123 4567"
+              />
+              <p className="text-xs text-gray-400">Se insertará automáticamente en el botón de WhatsApp del editor de publicaciones.</p>
             </div>
           </Card>
 
