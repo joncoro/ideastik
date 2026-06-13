@@ -109,4 +109,51 @@ export default function Composer() {
                 value={copy} 
                 onChange={e => setCopy(e.target.value)} 
                 className="border-0 focus-visible:ring-0 min-h-[400px] p-6 text-base leading-relaxed" 
-                placeholder="Tu copy aparecerá
+                placeholder="Tu copy aparecerá aquí..." 
+              />
+            </Card>
+
+            <Card className="p-4">
+              <p className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                <SafeIcon name="Megaphone" className="w-3.5 h-3.5 text-primary" /> Cierra la venta: añade un llamado a la acción
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => handleInsertCTA('whatsapp')} className="text-xs px-3 py-2 rounded-full bg-success/10 text-success font-medium hover:bg-success/20 transition-colors flex items-center gap-1.5">
+                  <SafeIcon name="MessageCircle" className="w-3.5 h-3.5" /> WhatsApp
+                </button>
+                <button onClick={() => handleInsertCTA('pedido')} className="text-xs px-3 py-2 rounded-full bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5">
+                  <SafeIcon name="ShoppingBag" className="w-3.5 h-3.5" /> Hacer pedido
+                </button>
+                <button onClick={() => handleInsertCTA('perfil')} className="text-xs px-3 py-2 rounded-full bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 transition-colors flex items-center gap-1.5">
+                  <SafeIcon name="Eye" className="w-3.5 h-3.5" /> Ver perfil
+                </button>
+              </div>
+              {!(currentBusiness?.whatsapp || currentBusiness?.telefono) && (
+                <p className="text-[10px] text-gray-400 mt-2">Tip: guarda tu WhatsApp en Ajustes para que se inserte automáticamente.</p>
+              )}
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="aspect-[4/5] bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-200 relative group overflow-hidden">
+              {post.image_url ? (
+                <img src={post.image_url} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <div className="text-center p-8">
+                  <SafeIcon name="Image" className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-sm text-gray-400 font-medium tracking-tight">Previsualización del Post</p>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      <WizardAgent 
+        context="editor" 
+        data={post} 
+        onApplySuggestion={handleApplySuggestion} 
+      />
+    </div>
+  );
+}

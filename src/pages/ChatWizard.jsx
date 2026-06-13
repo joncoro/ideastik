@@ -83,10 +83,15 @@ export default function ChatWizard() {
   const [ajustePendiente, setAjustePendiente] = useState(null);
 
   const getSystemPrompt = (biz) => `
-    Eres el Estratega Maestro de Ideastik.
-    Diferencial del negocio: ${biz?.diferente || 'calidad'}. Sector: ${biz?.sector || 'general'}.
-    REGLAS DE MÉTODO: Nunca uses el precio como diferenciador. Nunca uses "no vendemos X, vendemos Y".
-    Enfócate en la percepción de valor (criterio, personalización, conocimiento, cumplimiento).
+    Eres el Estratega Maestro de Ideastik, experto en marketing de contenidos para emprendedores.
+    DATOS DEL NEGOCIO:
+    - Nombre: ${biz?.nombre || 'sin nombre'}
+    - Qué hace: ${biz?.que_hace || 'no especificado'}
+    - Diferencial real: ${biz?.diferente || 'calidad'}
+    - Sector: ${biz?.sector || 'general'}
+    - Cliente ideal: ${biz?.cliente_ideal || 'no especificado'}
+    ${biz?.propuesta_valor ? `- Propuesta de valor elegida: ${biz.propuesta_valor}` : ''}
+    REGLAS DE MÉTODO (innegociables): Nunca uses el precio como diferenciador. Nunca uses la fórmula "no vendemos X, vendemos Y". El diferencial vive en la percepción: criterio, personalización, conocimiento, asesoría, sistema, cumplimiento. Todo lo que generes debe hablarle directamente al cliente ideal descrito y ser específico a ESTE negocio, nunca genérico. Apunta al efecto "no había pensado en esto".
     REGLA DE FORMATO: Responde SIEMPRE con JSON válido y COMPLETO. Nunca cortes el JSON a la mitad. No agregues texto fuera del JSON.
   `;
 
@@ -248,7 +253,16 @@ export default function ChatWizard() {
       const sel = Array.isArray(biz.pilares_seleccionados) ? biz.pilares_seleccionados : [];
       const nombres = sel.map(p => p.nombre).filter(Boolean);
       if (nombres.length > 0) {
-        promptFinal = `Genera exactamente 2 ideas de post para CADA uno de estos pilares. Usa EXACTAMENTE estos nombres como claves del objeto (sin inventar otros): ${nombres.join(', ')}. Cada 'gancho' y 'desc' debe ser corto (máximo 12 palabras). Responde SOLO con JSON válido y completo: {"ideas": {${nombres.map(n => `"${n}": [{"gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]`).join(', ')}}}`;
+        // Banco de preguntas detonadoras por tipo de pilar (del método Ideastik)
+        const banco = {
+          autoridad: 'qué decisión técnica tomas que el cliente no entendería, qué error común tú no cometes',
+          conexion: 'qué te llevó a empezar, qué pasó esta semana que te recordó por qué haces esto',
+          venta: 'qué tienes disponible esta semana, cuál es tu producto o servicio estrella',
+          prueba_social: 'quién compró esta semana, quién contaría su experiencia',
+          educacion: 'qué pregunta te hacen siempre, qué mito existe sobre tu sector',
+        };
+        const guia = sel.map(p => `"${p.nombre}" (pilar de ${p.tipo}: detona con — ${banco[p.tipo] || 'algo útil para el cliente'})`).join('; ');
+        promptFinal = `Genera exactamente 2 ideas de post para CADA uno de estos pilares, usando EXACTAMENTE estos nombres como claves (sin inventar otros). Para cada pilar, inspírate en sus preguntas detonadoras: ${guia}. Las ideas deben ser concretas, hablarle al cliente ideal y específicas a este negocio (nada genérico). Cada 'gancho' y 'desc' corto (máximo 14 palabras). Responde SOLO con JSON válido y completo: {"ideas": {${nombres.map(n => `"${n}": [{"gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]`).join(', ')}}}`;
       }
     }
 
@@ -298,7 +312,7 @@ export default function ChatWizard() {
     const pilaresSel = Array.isArray(biz.pilares_seleccionados) ? biz.pilares_seleccionados : [];
 
     // Normaliza un nombre para comparar sin acentos/mayúsculas/espacios extra.
-    const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 
     Object.entries(ideasSource).forEach(([pilarName, ideas]) => {
       // Match flexible: exacto, o por nombre normalizado, o por inclusión parcial.
@@ -508,4 +522,37 @@ export default function ChatWizard() {
 
       {/* COLUMNA DE CONVERSACIÓN */}
       <div className="flex flex-col h-full flex-1 relative max-w-2xl mx-auto w-full">
-      <header classN
+      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center gap-3 shrink-0 z-10">
+        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary"><SafeIcon name="Zap" className="w-5 h-5" /></div>
+        <div>
+          <h2 className="font-heading font-bold text-gray-900 leading-none">Estratega Ideastik</h2>
+          <span className="text-[11px] text-success font-medium">● En línea</span>
+        </div>
+      </header>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 md:px-8 py-6 space-y-6 pb-28">
+        <AnimatePresence initial={false}>
+          {messages.map((msg, idx) => {
+            const isWidgetFrozen = idx !== messages.length - 1;
+            return (
+              <motion.div key={msg.id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
+                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white border border-gray-100 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
+                {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+        {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#FAFAF8] via-[#FAFAF8]/95 to-transparent">
+        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
+          <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
+          <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
+        </form>
+      </div>
+      </div>
+    </div>
+  );
+}
