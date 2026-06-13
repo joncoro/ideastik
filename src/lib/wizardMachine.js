@@ -26,10 +26,15 @@ export const WIZARD_PHASES = {
   },
   DATOS_SECTOR: {
     question: "Perfecto. ¿En qué sector clasificarías tu negocio?",
-    next: 'DATOS_HORAS',
+    next: 'DATOS_CLIENTE',
     field: 'sector',
     widget: 'chips',
     options: ['Gastronomía', 'Belleza', 'Salud', 'Tecnología', 'Moda', 'Servicios', 'Otro']
+  },
+  DATOS_CLIENTE: {
+    question: "Ahora lo más importante: ¿a quién te imaginas cuando piensas en tu cliente ideal? Descríbeme a esa persona (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
+    next: 'DATOS_HORAS',
+    field: 'cliente_ideal'
   },
   DATOS_HORAS: {
     question: "Entendido. ¿Cuántas horas a la semana podrías dedicarle a crear el contenido que vamos a planear?",
@@ -43,7 +48,7 @@ export const WIZARD_PHASES = {
     next: 'PV_ELEGIR',
     isAuto: true,
     aiTask: 'pv_opciones',
-    prompt: "Genera 3 propuestas de valor. Responde SOLO con JSON válido y completo: {\"options\": [{\"tag\": \"Estratégica\", \"text\": \"máximo 12 palabras\"}]}"
+    prompt: "Genera 3 propuestas de valor, cada una con un ángulo DISTINTO y en máximo 16 palabras. Ángulo 1 (Estratégica): la razón racional por la que eligen a este negocio y no a la alternativa (su criterio o categoría). Ángulo 2 (Emocional): cómo se siente o qué dice de sí mismo el cliente ideal al elegirlo. Ángulo 3 (Diferenciadora): el mecanismo concreto que la competencia no puede copiar fácil. Cada una debe nombrar el diferencial real (proceso, atención, conocimiento, entrega, asesoría o sistema), hablarle al cliente ideal y pasar la prueba: solo este negocio podría decirla. Prohibido: precio, clichés vacíos (calidad, pasión, los mejores) y la fórmula 'no vendemos X sino Y'. Responde SOLO con JSON válido y completo: {\"options\": [{\"tag\": \"Estratégica|Emocional|Diferenciadora\", \"text\": \"máximo 16 palabras\"}]}"
   },
   PV_ELEGIR: {
     question: "He diseñado estas propuestas basadas en tu diferencial. ¿Cuál resuena más contigo?",
@@ -56,7 +61,7 @@ export const WIZARD_PHASES = {
     next: 'NARRATIVA_CONFIRMAR',
     isAuto: true,
     aiTask: 'narrativa',
-    prompt: "Escribe una narrativa de marca corta (máximo 50 palabras). Responde SOLO con JSON válido: {\"narrativa\": \"texto\"}"
+    prompt: "Escribe la narrativa de marca en máximo 55 palabras con esta lógica: (1) parte de una creencia o tensión real del cliente ideal; (2) muestra cómo este negocio la resuelve gracias a su diferencial; (3) cierra con lo que eso significa para el cliente. Que suene humana, específica y coherente con la propuesta de valor elegida; nada de frases de catálogo ni clichés. Define además el REGISTRO DE TONO según el negocio y cliente (cercano y de tú a tú para moda/belleza/consumo; empático y sin juicio para servicios personales y del hogar; profesional pero humano y con datos para B2B y servicios profesionales). Responde SOLO con JSON válido: {\"narrativa\": \"texto\", \"tono\": \"una frase que describe el tono recomendado\"}"
   },
   NARRATIVA_CONFIRMAR: {
     question: "Aquí tienes el corazón de tu comunicación. ¿Qué te parece este enfoque?",
@@ -71,7 +76,7 @@ export const WIZARD_PHASES = {
     isAuto: true,
     aiTask: 'pilares',
     // 5 pilares, desc de UNA frase (máx 15 palabras): evita el truncamiento del JSON.
-    prompt: "Genera exactamente 5 pilares de contenido. Cada 'desc' debe ser UNA sola frase de máximo 15 palabras. Responde SOLO con JSON válido y completo, sin texto adicional: {\"pilares\": [{\"tipo\": \"autoridad|conexion|venta|educacion\", \"nombre\": \"string corto\", \"desc\": \"una frase corta\"}]}"
+    prompt: "Genera exactamente 5 pilares de contenido: temas recurrentes y con NOMBRE PROPIO (tipo serie de contenido, con personalidad; nunca genérico como 'Tips' o 'Consejos'), cada uno conectado al diferencial del negocio y al cliente ideal. Da variedad usando estos tipos: autoridad (demuestra criterio/experticia), educacion (enseña algo útil), conexion (humaniza la marca o su historia), venta (muestra el producto/servicio sin sonar a anuncio) y prueba_social (clientes, resultados, testimonios). Cada 'desc' es UNA frase de máximo 15 palabras que explica qué tipo de posts viven en ese pilar. Responde SOLO con JSON válido y completo, sin texto adicional: {\"pilares\": [{\"tipo\": \"autoridad|conexion|venta|educacion|prueba_social\", \"nombre\": \"string corto y con personalidad\", \"desc\": \"una frase corta\"}]}"
   },
   PILARES_ELEGIR: {
     question: "Estos son los temas de los que hablaremos. Selecciona entre 3 y 5 pilares para tu estrategia:",
@@ -84,7 +89,15 @@ export const WIZARD_PHASES = {
     next: 'ESTRATEGIA_CONFIRMAR',
     isAuto: true,
     aiTask: 'estrategia',
-    prompt: "Define la estrategia. Responde SOLO con JSON válido: {\"estrategia\": {\"canalPrincipal\": \"string\", \"frecuencia\": 3, \"horarios\": \"string\", \"tono\": \"string\"}}"
+    prompt: `Define la estrategia de publicación basándote en estas REGLAS DE MARKETING por tipo de negocio (adáptalas al negocio y su cliente ideal, sin atarlas a ninguna ciudad):
+- Moda/ropa: reels de outfit y fotos con producto real, carruseles de catálogo; 4-5 por semana; canal principal Instagram, secundario TikTok, WhatsApp para cerrar venta.
+- Gastronomía/comida: reels de preparación, fotos del plato, detrás de cámaras; 3-4 por semana; Instagram y TikTok, WhatsApp Business con catálogo.
+- Belleza/accesorios/fragancias: reels de uso real, fotos cuidadas, carruseles de combinaciones; 4-5 por semana; Instagram principal, TikTok, web si tiene.
+- Servicios personales (barbería, organización, estética, etc.): antes-y-después, testimonios en video, tutoriales cortos; 3 por semana; Instagram, WhatsApp Business, perfil de Google.
+- Artesanos/hecho a mano: videos de proceso, fotos del taller, la historia de cada pieza; 3-4 por semana; Instagram y TikTok (alto potencial viral), web propia.
+- B2B/servicios profesionales (consultoría, inmobiliaria, etc.): carruseles con datos, casos de cliente, posts de opinión; 2-3 por semana; LinkedIn principal, Instagram secundario, newsletter.
+Para días y horas: razona según el COMPORTAMIENTO del cliente ideal y el tipo de negocio (ej. un negocio de consumo visual rinde en tardes/noches y fines de semana; un B2B rinde en días y horas laborales). Da 2 o 3 franjas concretas (día + hora) con su razón breve. NO inventes una ciudad. Elige UN canal principal y UN secundario; no más.
+Responde SOLO con JSON válido: {"estrategia": {"canalPrincipal": "string", "canalSecundario": "string", "formatos": ["formato1","formato2"], "frecuencia": "ej. 3-4 por semana", "diasHoras": "días y franjas recomendadas con su razón breve", "tono": "string"}}`
   },
   ESTRATEGIA_CONFIRMAR: {
     question: "¡Listo! Este es tu mapa estratégico, hecho a la medida de tu negocio. ¿Damos el último paso?",
@@ -102,7 +115,7 @@ export const WIZARD_PHASES = {
     next: 'IDEAS_CONFIRMAR',
     isAuto: true,
     aiTask: 'ideas',
-    prompt: "Genera 2 ideas por cada pilar seleccionado. Cada 'gancho' y 'desc' debe ser corto (máximo 12 palabras). Responde SOLO con JSON válido y completo: {\"ideas\": {\"NombrePilar\": [{\"gancho\": \"string\", \"desc\": \"string\", \"formato\": \"Reel|Carrusel|Historia\"}]}}"
+    prompt: "Genera 2 ideas de post por cada pilar seleccionado, detonadas por preguntas reales del negocio (qué decisión técnica tomas que el cliente no entiende, qué te llevó a empezar, qué tienes disponible, quién compró, qué mito existe en tu sector). Cada 'gancho' y 'desc' corto (máximo 14 palabras), específico al cliente ideal, nada genérico. Responde SOLO con JSON válido y completo: {\"ideas\": {\"NombrePilar\": [{\"gancho\": \"string\", \"desc\": \"string\", \"formato\": \"Reel|Carrusel|Historia\"}]}}"
   },
   IDEAS_CONFIRMAR: {
     question: "He llenado tu calendario con ideas aterrizadas. ¿Quieres ver cómo quedó todo?",
