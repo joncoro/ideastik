@@ -12,7 +12,7 @@ export default function Layout() {
   
   if (!user) return <Outlet />;
   
-  const isExcluded = location.pathname.includes('/estrategia') || location.pathname.includes('/post/');
+  const isExcluded = location.pathname.includes('/estrategia') || location.pathname.includes('/post/') || location.pathname.includes('/empezar');
   if (isExcluded) return <Outlet />;
 
   const navItems = [

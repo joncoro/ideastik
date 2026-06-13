@@ -106,6 +106,17 @@ export default function ChatWizard() {
           const { data: history } = await supabase.from('wizard_messages').select('*').eq('business_id', bizId).order('created_at', { ascending: true });
           if (history?.length > 0) {
             setMessages(history.map(m => ({ id: m.id, role: m.role, content: m.content, widget: m.widget })));
+            // Reanudar la fase actual si aún no se presentó: evita que el wizard se
+            // trabe tras navegar/recargar (la siguiente pregunta no se mostraba).
+            const fase = biz.current_fase || 'DATOS_NOMBRE';
+            const cfg = WIZARD_PHASES[fase];
+            const lastAgent = [...history].reverse().find(m => m.role === 'agent');
+            const yaPresentada = cfg && lastAgent && lastAgent.content === cfg.question;
+            const faltaAuto = cfg && cfg.isAuto && !biz[cfg.aiTask];
+            const faltaPregunta = cfg && !cfg.isAuto && !yaPresentada;
+            if (cfg && fase !== 'COMPLETADO' && fase !== 'FIN' && (faltaAuto || faltaPregunta)) {
+              startPhase(fase, biz);
+            }
           } else {
             startPhase(biz.current_fase || 'DATOS_NOMBRE', biz);
           }
@@ -163,9 +174,13 @@ export default function ChatWizard() {
         }
 
         const widget = config.widget ? { type: config.widget, data: widgetData } : null;
-        const msg = { id: Date.now().toString(), role: 'agent', content: config.question, widget };
-        setMessages(prev => [...prev, msg]);
-        if (biz?.id) await saveMessage('agent', config.question, widget, biz.id);
+        let added = false;
+        setMessages(prev => {
+          if (prev.some(m => m.content === config.question)) return prev;
+          added = true;
+          return [...prev, { id: Date.now().toString(), role: 'agent', content: config.question, widget }];
+        });
+        if (added && biz?.id) await saveMessage('agent', config.question, widget, biz.id);
       }, 600);
     }
   };
