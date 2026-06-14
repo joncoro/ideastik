@@ -116,6 +116,20 @@ export async function generarJSON(system, messages, maxTokens = 800) {
 }
 
 /**
+ * Genera TEXTO plano (no JSON) — para copys de publicaciones y mensajes libres.
+ * Devuelve el string del modelo, o '' si no hubo texto.
+ */
+export async function generarTexto(system, messages, maxTokens = 600) {
+  const data = await callAgentFunction({
+    system: String(system),
+    messages: messages || [],
+    maxTokens: Number(maxTokens),
+    stream: false
+  });
+  return (data.content?.[0]?.text || data.text || '').trim();
+}
+
+/**
  * Streaming simulado para el agente conversacional (no afecta al wizard).
  */
 export async function streamTexto(system, messages, maxTokens = 800, onDelta) {

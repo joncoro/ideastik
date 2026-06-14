@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import { aiService } from '../lib/mockAi';
+import { generarTexto } from '../lib/ia';
 import { Button, Card, Textarea, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
 import SafeIcon from '../common/SafeIcon';
@@ -34,13 +34,26 @@ export default function Composer() {
   };
 
   const handleGenerateContent = async () => {
+    if (!post) return;
     setGenerating(true);
     try {
-      const res = await aiService.armarPublicacion(post, currentBusiness);
-      setCopy(res.copy);
-      await db.updatePost(postId, { copy: res.copy, status: 'READY' });
+      const b = currentBusiness || {};
+      const system = `Eres el redactor de contenido de Ideastik para el negocio "${b.nombre || 'este negocio'}". Escribes copy en español, listo para publicar en redes sociales.
+Contexto del negocio: vende ${b.que_hace || 'su producto o servicio'}; su diferencial real es ${b.diferente || 'su forma de trabajar'}; sector ${b.sector || 'general'}; cliente ideal ${b.cliente_ideal || 'su audiencia'}.${b.propuesta_valor ? ` Propuesta de valor: ${b.propuesta_valor}.` : ''}
+Reglas innegociables: nunca uses el precio como diferenciador; nunca la fórmula "no vendemos X, vendemos Y"; el diferencial vive en la percepción (criterio, asesoría, personalización, conocimiento, sistema, cumplimiento). Háblale directo al cliente ideal y sé específico a ESTE negocio, nada genérico.`;
+      const userMsg = `Escribe el copy para esta publicación:
+- Pilar: ${post.pilar || 'general'}${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}
+- Formato: ${post.formato || 'Reel'}
+- Canal: ${post.canal || 'Instagram'}
+- Gancho base: "${post.gancho || ''}"
+Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, sin encabezados, sin explicaciones). Empieza con un gancho potente, desarrolla en 2 a 4 frases breves con saltos de línea, y cierra con una invitación a la acción suave. Agrega máximo 3 hashtags relevantes al final.`;
+      const texto = await generarTexto(system, [{ role: 'user', content: userMsg }], 600);
+      if (texto) {
+        setCopy(texto);
+        await db.updatePost(postId, { copy: texto, status: 'READY' });
+      }
     } catch (e) {
-      console.error(e);
+      console.error('Error generando copy:', e);
     } finally {
       setGenerating(false);
     }

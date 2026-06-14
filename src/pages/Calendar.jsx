@@ -20,6 +20,13 @@ export default function CalendarHub() {
   const [isInspirationOpen, setIsInspirationOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
 
+  // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
+  const est = (() => {
+    const e = currentBusiness?.estrategia;
+    if (!e) return {};
+    return (e.estrategia && typeof e.estrategia === 'object') ? e.estrategia : e;
+  })();
+
   useEffect(() => {
     if (currentBusiness) loadPosts();
   }, [currentBusiness, currentDate]);
@@ -58,7 +65,7 @@ export default function CalendarHub() {
       pilar: idea.pilarName,
       pilar_tipo: idea.pilarTipo,
       formato: idea.formato,
-      canal: currentBusiness.estrategia?.canalPrincipal || 'Instagram',
+      canal: est.canalPrincipal || 'Instagram',
       gancho: idea.gancho,
       hora: 'mediodia'
     }]);
@@ -107,6 +114,11 @@ export default function CalendarHub() {
               {dayPosts.map(post => (
                 <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm bg-white hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo))}>
                   <p className="font-medium text-gray-800 line-clamp-2 leading-tight">{post.gancho}</p>
+                  <div className="flex flex-wrap items-center gap-1 mt-1 text-[9px] text-gray-400">
+                    {post.formato && <span>{post.formato}</span>}
+                    {post.canal && <span>· {post.canal}</span>}
+                    {post.hora && <span>· {post.hora}</span>}
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -151,6 +163,7 @@ export default function CalendarHub() {
                       <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full", pilarChip(post.pilar_tipo))}>{post.pilar}</span>
                       {post.formato && <span className="text-[10px] text-gray-400">· {post.formato}</span>}
                       {post.canal && <span className="text-[10px] text-gray-400">· {post.canal}</span>}
+                      {post.hora && <span className="text-[10px] text-gray-400">· {post.hora}</span>}
                     </div>
                     <p className="text-sm font-medium text-gray-800 leading-snug">{post.gancho}</p>
                   </div>
@@ -179,6 +192,22 @@ export default function CalendarHub() {
   return (
     // pb-32 en móvil deja aire para la barra inferior y el botón de chat
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen pb-32 lg:pb-12">
+      {currentBusiness?.propuesta_valor && (
+        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-primary/5 to-success/5 border-primary/10">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0"><SafeIcon name="Compass" className="w-5 h-5" /></div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-0.5">Tu propuesta de valor</p>
+              <p className="text-sm text-gray-800 font-medium leading-snug">{currentBusiness.propuesta_valor}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {est.canalPrincipal && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Send" className="w-3 h-3" /> {est.canalPrincipal}</span>}
+                {est.frecuencia && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Repeat" className="w-3 h-3" /> {est.frecuencia}</span>}
+                <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-[10px] px-2 py-0.5 rounded-full bg-white text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/5"><SafeIcon name="Edit2" className="w-3 h-3" /> Editar estrategia</button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <h2 className="text-xl md:text-2xl font-heading font-bold capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
         <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
