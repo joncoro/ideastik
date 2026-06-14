@@ -1,47 +1,52 @@
 /**
- * Definición de fases. Prompts ajustados para JSON compacto y válido:
- * - Pilares: 5 (no 6) con desc de UNA frase corta, para que el JSON no se trunque.
- * - El resto igual; el manejo de cada formato se hace en ChatWizard.
+ * Definición de fases.
+ * - DATOS_NOMBRE: única pregunta fija (necesaria para crear el negocio).
+ * - ENTREVISTA: descubrimiento DINÁMICO conducido por la IA (una pregunta a la
+ *   vez, repregunta cuando la respuesta es floja). El contrato JSON está en
+ *   `interviewSystemPrompt`.
+ * - El resto genera la estrategia con prompts del método Ideastik.
  */
+
+/**
+ * System prompt del entrevistador (fase ENTREVISTA). La IA conduce el
+ * descubrimiento y responde SIEMPRE con uno de estos dos JSON:
+ *  - Seguir:   {"accion":"preguntar","pregunta":"...","sugerencias":["chip"...]}
+ *  - Terminar: {"accion":"finalizar","perfil":{...},"cierre":"..."}
+ */
+export const interviewSystemPrompt = (biz) => `Eres un estratega de marketing de contenidos senior entrevistando a un emprendedor para construir su estrategia. El negocio se llama "${biz?.nombre || 'su marca'}".
+
+TU MISIÓN: entender el negocio EN PROFUNDIDAD. Haz UNA sola pregunta por turno, con tono cálido, cercano y experto (tuteo latino, frases cortas). Reconoce en una frase breve lo que te acaban de decir antes de preguntar lo siguiente.
+
+DEBES DESCUBRIR (no lo preguntes como checklist, hazlo conversacional):
+- qué vende o hace exactamente
+- su diferencial REAL en la percepción del cliente (criterio, personalización, conocimiento, asesoría, sistema, cumplimiento) — NUNCA el precio
+- sector
+- ciudad o país
+- cliente ideal CON DETALLE (quién es, edad/segmento, qué le importa, qué problema tiene, cuándo compra)
+- objetivo de negocio (vender más, posicionarse, fidelizar, lanzar algo...)
+- tono de marca deseado (cercano, premium, divertido, experto, etc.)
+- cuántas horas por semana puede dedicarle al contenido
+
+REGLA CLAVE — REPREGUNTA: si una respuesta es vaga o genérica ("ropa para niños", "calidad", "buen servicio", "todos"), NO la aceptes: repregunta UNA vez para profundizar (¿qué edades/segmento?, ¿qué problema concreto resuelves?, ¿qué haces distinto que el cliente sí nota?). No repreguntes el mismo punto más de una vez. Máximo ~8 preguntas en total. Cuando ya tengas material específico y suficiente, FINALIZA.
+
+FORMATO (OBLIGATORIO): responde SOLO con JSON válido y completo, una de estas dos formas:
+1) Para seguir entrevistando:
+{"accion":"preguntar","pregunta":"texto cálido de UNA pregunta","sugerencias":["opción corta","..."]}
+("sugerencias" es opcional: 0 a 4 chips cortos cuando ayuden a responder; si no aplican, usa [])
+2) Para terminar:
+{"accion":"finalizar","perfil":{"que_hace":"...","diferente":"...","sector":"...","ciudad":"...","cliente_ideal":"...","objetivo":"...","tono_marca":"...","horas_semana":"..."},"cierre":"frase de cierre entusiasta y breve"}
+No agregues texto fuera del JSON.`;
+
 export const WIZARD_PHASES = {
   DATOS_NOMBRE: {
-    question: "¡Hola! Soy tu estratega de Ideastik. Comencemos por lo básico. ¿Cómo se llama tu negocio o marca?",
-    next: 'DATOS_CIUDAD',
+    question: "¡Hola! Soy tu estratega de Ideastik. Voy a hacerte unas preguntas para entender bien tu negocio y construir una estrategia que de verdad te represente. Para arrancar: ¿cómo se llama tu negocio o marca?",
+    next: 'ENTREVISTA',
     field: 'nombre'
   },
-  DATOS_CIUDAD: {
-    question: "¡Qué buen nombre! ¿En qué ciudad o país está ubicado?",
-    next: 'DATOS_QUEHACE',
-    field: 'ciudad'
-  },
-  DATOS_QUEHACE: {
-    question: "¿Qué es exactamente lo que vendes o el servicio que prestas?",
-    next: 'DATOS_QUE_DIFERENTE',
-    field: 'que_hace'
-  },
-  DATOS_QUE_DIFERENTE: {
-    question: "Interesante... ¿Qué dirías que es eso que te hace realmente diferente a tu competencia?",
-    next: 'DATOS_SECTOR',
-    field: 'diferente'
-  },
-  DATOS_SECTOR: {
-    question: "Perfecto. ¿En qué sector clasificarías tu negocio?",
-    next: 'DATOS_CLIENTE',
-    field: 'sector',
-    widget: 'chips',
-    options: ['Gastronomía', 'Belleza', 'Salud', 'Tecnología', 'Moda', 'Servicios', 'Otro']
-  },
-  DATOS_CLIENTE: {
-    question: "Ahora lo más importante: ¿a quién te imaginas cuando piensas en tu cliente ideal? Descríbeme a esa persona (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
-    next: 'DATOS_HORAS',
-    field: 'cliente_ideal'
-  },
-  DATOS_HORAS: {
-    question: "Entendido. ¿Cuántas horas a la semana podrías dedicarle a crear el contenido que vamos a planear?",
-    next: 'PV_GENERAR',
-    field: 'horas_semana',
-    widget: 'chips',
-    options: ['1-3 horas', '4-7 horas', 'Más de 8 horas']
+  ENTREVISTA: {
+    // Fase de descubrimiento dinámico. La maneja runInterview() en ChatWizard.
+    isInterview: true,
+    next: 'PV_GENERAR'
   },
   PV_GENERAR: {
     question: "¡Excelente! Con esta información ya puedo empezar a trabajar. Dame un momento mientras diseño unas propuestas de valor estratégicas para ti...",

@@ -12,7 +12,7 @@ import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { WIZARD_PHASES, getNextPhase } from '../lib/wizardMachine';
+import { WIZARD_PHASES, getNextPhase, interviewSystemPrompt } from '../lib/wizardMachine';
 
 /**
  * Extrae un ARRAY de una respuesta de IA, sin importar el envoltorio.
@@ -82,18 +82,28 @@ export default function ChatWizard() {
   // y su próximo mensaje se usa como instrucción extra para regenerar.
   const [ajustePendiente, setAjustePendiente] = useState(null);
 
-  const getSystemPrompt = (biz) => `
+  const getSystemPrompt = (biz) => {
+    const narr = biz?.narrativa ? extraerNarrativa(biz.narrativa) : '';
+    const tono = biz?.narrativa ? (extraerObjeto(biz.narrativa)?.tono || '') : '';
+    return `
     Eres el Estratega Maestro de Ideastik, experto en marketing de contenidos para emprendedores.
     DATOS DEL NEGOCIO:
     - Nombre: ${biz?.nombre || 'sin nombre'}
     - Qué hace: ${biz?.que_hace || 'no especificado'}
     - Diferencial real: ${biz?.diferente || 'calidad'}
     - Sector: ${biz?.sector || 'general'}
+    - Ciudad/país: ${biz?.ciudad || 'no especificado'}
     - Cliente ideal: ${biz?.cliente_ideal || 'no especificado'}
+    - Objetivo de negocio: ${biz?.objetivo || 'no especificado'}
+    - Tono de marca deseado: ${biz?.tono_marca || 'no especificado'}
+    - Horas semanales para contenido: ${biz?.horas_semana || 'no especificado'}
     ${biz?.propuesta_valor ? `- Propuesta de valor elegida: ${biz.propuesta_valor}` : ''}
+    ${narr ? `- Narrativa de marca: ${narr}` : ''}
+    ${tono ? `- Registro de tono definido: ${tono}` : ''}
     REGLAS DE MÉTODO (innegociables): Nunca uses el precio como diferenciador. Nunca uses la fórmula "no vendemos X, vendemos Y". El diferencial vive en la percepción: criterio, personalización, conocimiento, asesoría, sistema, cumplimiento. Todo lo que generes debe hablarle directamente al cliente ideal descrito y ser específico a ESTE negocio, nunca genérico. Apunta al efecto "no había pensado en esto".
     REGLA DE FORMATO: Responde SIEMPRE con JSON válido y COMPLETO. Nunca cortes el JSON a la mitad. No agregues texto fuera del JSON.
   `;
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -110,12 +120,21 @@ export default function ChatWizard() {
             // trabe tras navegar/recargar (la siguiente pregunta no se mostraba).
             const fase = biz.current_fase || 'DATOS_NOMBRE';
             const cfg = WIZARD_PHASES[fase];
-            const lastAgent = [...history].reverse().find(m => m.role === 'agent');
-            const yaPresentada = cfg && lastAgent && lastAgent.content === cfg.question;
-            const faltaAuto = cfg && cfg.isAuto && !biz[cfg.aiTask];
-            const faltaPregunta = cfg && !cfg.isAuto && !yaPresentada;
-            if (cfg && fase !== 'COMPLETADO' && fase !== 'FIN' && (faltaAuto || faltaPregunta)) {
-              startPhase(fase, biz);
+            if (cfg?.isInterview) {
+              // Reanudar entrevista: si lo último fue una respuesta del usuario sin
+              // procesar, continuamos; si fue una pregunta del agente, esperamos.
+              const last = history[history.length - 1];
+              if (last && last.role === 'user') {
+                runInterview(biz, { convo: history.map(m => ({ role: m.role, content: m.content })) });
+              }
+            } else {
+              const lastAgent = [...history].reverse().find(m => m.role === 'agent');
+              const yaPresentada = cfg && lastAgent && lastAgent.content === cfg.question;
+              const faltaAuto = cfg && cfg.isAuto && !biz[cfg.aiTask];
+              const faltaPregunta = cfg && !cfg.isAuto && !yaPresentada;
+              if (cfg && fase !== 'COMPLETADO' && fase !== 'FIN' && (faltaAuto || faltaPregunta)) {
+                startPhase(fase, biz);
+              }
             }
           } else {
             startPhase(biz.current_fase || 'DATOS_NOMBRE', biz);
@@ -142,9 +161,69 @@ export default function ChatWizard() {
     await supabase.from('wizard_messages').insert([{ business_id: bId, role, content, widget }]);
   };
 
+  // ---------- ENTREVISTA DINÁMICA (descubrimiento conducido por la IA) ----------
+  // La IA hace UNA pregunta por turno y repregunta cuando la respuesta es floja.
+  // Cuando junta material suficiente, devuelve {accion:'finalizar', perfil:{...}}
+  // y pasamos a generar la estrategia. `convo` permite pasar el historial al
+  // reanudar (cuando el estado `messages` aún no se hidrató).
+  const runInterview = async (biz, { newAnswer = null, convo = null } = {}) => {
+    if (!biz?.id) return;
+    setIsTyping(true);
+    const base = convo || messages;
+    const turnos = (base || [])
+      .filter(m => m && m.content)
+      .map(m => `${m.role === 'user' ? 'Emprendedor' : 'Estratega'}: ${m.content}`);
+    if (newAnswer) turnos.push(`Emprendedor: ${newAnswer}`);
+    const transcript = turnos.join('\n');
+    const userContent = `Conversación de descubrimiento hasta ahora:\n${transcript || '(aún no empieza)'}\n\nDecide el siguiente paso y responde SOLO con el JSON (accion "preguntar" o "finalizar").`;
+
+    let result = await generarJSON(interviewSystemPrompt(biz), [{ role: 'user', content: userContent }], 700);
+    if (!result) result = await generarJSON(interviewSystemPrompt(biz), [{ role: 'user', content: userContent }], 700);
+    setIsTyping(false);
+
+    const limpio = (v, fb) => (typeof v === 'string' && v.trim() ? v.trim() : fb);
+
+    if (result?.accion === 'finalizar' && result.perfil) {
+      const p = result.perfil;
+      const updates = {
+        que_hace: limpio(p.que_hace, biz.que_hace),
+        diferente: limpio(p.diferente, biz.diferente),
+        sector: limpio(p.sector, biz.sector),
+        ciudad: limpio(p.ciudad, biz.ciudad),
+        cliente_ideal: limpio(p.cliente_ideal, biz.cliente_ideal),
+        objetivo: limpio(p.objetivo, biz.objetivo),
+        tono_marca: limpio(p.tono_marca, biz.tono_marca),
+        horas_semana: limpio(p.horas_semana, biz.horas_semana),
+        current_fase: 'PV_GENERAR',
+      };
+      await db.updateBusiness(biz.id, updates);
+      const nb = { ...biz, ...updates };
+      setBusinessData(nb);
+      const cierre = limpio(result.cierre, '¡Perfecto! Con esto ya entiendo tu negocio. Dame un momento mientras diseño tu estrategia...');
+      setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: cierre }]);
+      await saveMessage('agent', cierre, null, biz.id);
+      setCurrentFase('PV_GENERAR');
+      startPhase('PV_GENERAR', nb);
+      return;
+    }
+
+    // Seguir preguntando
+    const pregunta = limpio(result?.pregunta, '¿Podrías contarme un poco más sobre tu negocio y tu cliente ideal?');
+    const sugerencias = Array.isArray(result?.sugerencias) ? result.sugerencias.filter(s => typeof s === 'string' && s.trim()) : [];
+    const widget = sugerencias.length ? { type: 'chips', data: sugerencias } : null;
+    setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: pregunta, widget }]);
+    await saveMessage('agent', pregunta, widget, biz.id);
+  };
+
   const startPhase = async (fase, biz = businessData, ajuste = null) => {
     const config = WIZARD_PHASES[fase];
     if (!config) return;
+
+    // Fase de entrevista dinámica: la conduce la IA.
+    if (config.isInterview) {
+      await runInterview(biz);
+      return;
+    }
 
     if (config.isAuto) {
       setIsTyping(true);
@@ -174,13 +253,27 @@ export default function ChatWizard() {
         }
 
         const widget = config.widget ? { type: config.widget, data: widgetData } : null;
+
+        // En la confirmación de narrativa mostramos el TEXTO generado + el tono
+        // (antes se generaba pero nunca se enseñaba).
+        let messageContent = config.question;
+        if (fase === 'NARRATIVA_CONFIRMAR') {
+          const narr = extraerNarrativa(biz?.narrativa);
+          const tono = extraerObjeto(biz?.narrativa)?.tono;
+          if (narr) messageContent = `"${narr}"${tono ? `\n\nTono sugerido: ${tono}` : ''}\n\n${config.question}`;
+        }
+
+        // Dedup contra el ÚLTIMO mensaje del agente (no contra todo el historial):
+        // así, al regenerar un ajuste, la tarjeta/confirmación VUELVE a aparecer
+        // en vez de quedar "congelada" porque el texto coincidía con uno viejo.
         let added = false;
         setMessages(prev => {
-          if (prev.some(m => m.content === config.question)) return prev;
+          const lastAgent = [...prev].reverse().find(m => m.role === 'agent');
+          if (lastAgent && lastAgent.content === messageContent) return prev;
           added = true;
-          return [...prev, { id: Date.now().toString(), role: 'agent', content: config.question, widget }];
+          return [...prev, { id: Date.now().toString(), role: 'agent', content: messageContent, widget }];
         });
-        if (added && biz?.id) await saveMessage('agent', config.question, widget, biz.id);
+        if (added && biz?.id) await saveMessage('agent', messageContent, widget, biz.id);
       }, 600);
     }
   };
@@ -216,6 +309,15 @@ export default function ChatWizard() {
       setCurrentFase(faseRegen);
       // Pasamos la instrucción del usuario como ajuste para el prompt
       startPhase(faseRegen, businessData, text);
+      return;
+    }
+
+    // Respuesta dentro de la entrevista dinámica: la procesa la IA (repregunta
+    // o finaliza). No usa la lógica fija de fases.
+    if (currentFase === 'ENTREVISTA') {
+      setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+      if (businessData?.id) await saveMessage('user', text, null, businessData.id);
+      await runInterview(businessData, { newAnswer: text });
       return;
     }
 
@@ -623,7 +725,7 @@ export default function ChatWizard() {
             const isWidgetFrozen = idx !== messages.length - 1;
             return (
               <motion.div key={msg.id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white border border-gray-100 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
+                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm whitespace-pre-line", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white border border-gray-100 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
