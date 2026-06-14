@@ -18,10 +18,24 @@ export const CREDIT_PACKS = [
 export const PLAN_MENSUAL_PRECIO = 19900;
 export const MONEDA = 'COP';
 
+/**
+ * Extrae el mensaje de error real de una Edge Function.
+ * supabase.functions.invoke devuelve un error genérico ("non-2xx status") y deja
+ * el cuerpo con el detalle (ej. el error de Mercado Pago) en error.context (la
+ * Response). Lo leemos para mostrarle al usuario algo útil.
+ */
+async function errorDeFuncion(error, fallback) {
+  try {
+    const body = await error?.context?.json?.();
+    if (body?.error) return new Error(body.error);
+  } catch (_) { /* sin cuerpo JSON: usamos el fallback */ }
+  return new Error(error?.message || fallback);
+}
+
 /** Inicia la suscripción mensual y redirige a Mercado Pago. */
 export async function iniciarSuscripcion() {
   const { data, error } = await supabase.functions.invoke('crear-suscripcion');
-  if (error) throw new Error(error.message || 'No se pudo iniciar la suscripción');
+  if (error) throw await errorDeFuncion(error, 'No se pudo iniciar la suscripción');
   if (!data?.init_point) throw new Error('Mercado Pago no devolvió un punto de pago');
   window.location.href = data.init_point;
 }
@@ -31,7 +45,7 @@ export async function comprarCreditos(packId) {
   const { data, error } = await supabase.functions.invoke('crear-preferencia', {
     body: { pack: packId },
   });
-  if (error) throw new Error(error.message || 'No se pudo iniciar el pago');
+  if (error) throw await errorDeFuncion(error, 'No se pudo iniciar el pago');
   if (!data?.init_point) throw new Error('Mercado Pago no devolvió un punto de pago');
   window.location.href = data.init_point;
 }
@@ -39,7 +53,7 @@ export async function comprarCreditos(packId) {
 /** Cancela la suscripción activa del usuario. */
 export async function cancelarSuscripcion() {
   const { data, error } = await supabase.functions.invoke('cancelar-suscripcion');
-  if (error) throw new Error(error.message || 'No se pudo cancelar la suscripción');
+  if (error) throw await errorDeFuncion(error, 'No se pudo cancelar la suscripción');
   return data;
 }
 

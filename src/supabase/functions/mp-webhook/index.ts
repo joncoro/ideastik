@@ -73,7 +73,7 @@ async function handlePayment(admin: any, paymentId: string) {
   }
 
   const userId: string | null = payment.metadata?.user_id ?? payment.external_reference ?? null;
-  const tipo: string = payment.metadata?.tipo ?? 'credits';
+  const tipo: string = payment.metadata?.tipo ?? 'subscription';
   const credits = Number(payment.metadata?.credits ?? 0);
 
   // Idempotencia: insertamos el pago; si ya existe (mp_payment_id UNIQUE), no
@@ -98,16 +98,12 @@ async function handlePayment(admin: any, paymentId: string) {
     throw insertErr;
   }
 
-  // Acreditar créditos sumando sobre el valor actual.
+  // Acreditar créditos de forma atómica (evita condiciones de carrera si llegan
+  // dos pagos del mismo usuario casi simultáneos).
   if (tipo === 'credits' && credits > 0 && userId) {
-    const { data: prof } = await admin
-      .from('profiles')
-      .select('credits')
-      .eq('id', userId)
-      .maybeSingle();
-    const nuevos = Number(prof?.credits ?? 0) + credits;
-    await admin.from('profiles').update({ credits: nuevos }).eq('id', userId);
-    console.log(`[mp-webhook] +${credits} créditos a ${userId} (total ${nuevos})`);
+    const { error: rpcErr } = await admin.rpc('add_credits', { p_user_id: userId, p_amount: credits });
+    if (rpcErr) throw rpcErr;
+    console.log(`[mp-webhook] +${credits} créditos a ${userId}`);
   }
 }
 
