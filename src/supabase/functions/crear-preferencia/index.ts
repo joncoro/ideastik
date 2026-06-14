@@ -31,7 +31,9 @@ Deno.serve(async (req) => {
           currency_id: CURRENCY,
         },
       ],
-      payer: { email: user.email },
+      // NO enviamos payer.email: si no coincide con el comprador logueado en
+      // Mercado Pago, el checkout deshabilita el botón Pagar. Dejamos que MP use
+      // la cuenta con la que el usuario inicia sesión.
       external_reference: user.id,
       // metadata viaja de vuelta en el pago: así el webhook sabe cuántos créditos acreditar.
       metadata: { user_id: user.id, tipo: 'credits', credits: pack.credits, pack: pack.id },
