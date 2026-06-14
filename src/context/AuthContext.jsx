@@ -101,6 +101,17 @@ export function AuthProvider({ children }) {
     localStorage.setItem('ideastik_current_biz_id', biz.id);
   };
 
+  const refreshProfile = async () => {
+    if (!user) return null;
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (prof) setProfile(prof);
+    return prof;
+  };
+
   const refreshBusiness = async () => {
     if (user) {
       const { data: bizs } = await supabase
@@ -119,8 +130,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, profile, currentBusiness, allBusinesses, 
-      setCurrentBusiness, switchBusiness, login, signUp, logout, 
-      loading, refreshBusiness
+      setCurrentBusiness, switchBusiness, login, signUp, logout,
+      loading, refreshBusiness, refreshProfile
     }}>
       {children}
     </AuthContext.Provider>
