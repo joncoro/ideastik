@@ -37,7 +37,9 @@ export default function InspirationPanel({ isOpen, onClose, onIdeaSelected }) {
         educacion: 'qué pregunta te hacen siempre, qué mito existe en tu sector',
       };
       const guia = pilares.map(p => `"${p.nombre}" (${p.tipo}: detona con — ${banco[p.tipo] || 'algo útil para el cliente'})`).join('; ');
-      const user = `Genera 1 idea de post FRESCA y concreta para CADA uno de estos pilares: ${guia}. Cada 'gancho' y 'desc' corto (máximo 14 palabras), específico al cliente ideal. Varía los formatos. Responde SOLO con JSON válido y completo: {"ideas": [{"pilarName": "nombre exacto del pilar", "tipo": "tipo del pilar", "gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]}`;
+      const evs = Array.isArray(b.eventos) ? b.eventos : [];
+      const fechasTxt = evs.length ? ` Hay fechas especiales marcadas: ${evs.map(e => e.fecha + ' ' + e.titulo).join('; ')}. Si alguna está cerca, propón al menos una idea que la aproveche con naturalidad.` : '';
+      const user = `Genera 1 idea de post FRESCA y concreta para CADA uno de estos pilares: ${guia}. Cada 'gancho' y 'desc' corto (máximo 14 palabras), específico al cliente ideal. Varía los formatos.${fechasTxt} Responde SOLO con JSON válido y completo: {"ideas": [{"pilarName": "nombre exacto del pilar", "tipo": "tipo del pilar", "gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]}`;
       const res = await generarJSON(system, [{ role: 'user', content: user }], 1400);
       const arr = Array.isArray(res) ? res : (res && Array.isArray(res.ideas) ? res.ideas : []);
       const allIdeas = arr.map(idea => {

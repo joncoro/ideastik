@@ -12,13 +12,17 @@ import WizardAgent from '../components/WizardAgent';
 import { motion } from 'framer-motion';
 
 export default function CalendarHub() {
-  const { currentBusiness } = useAuth();
+  const { currentBusiness, refreshBusiness } = useAuth();
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isInspirationOpen, setIsInspirationOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [eventModal, setEventModal] = useState(false);
+  const [eventDate, setEventDate] = useState('');
+  const [eventTitle, setEventTitle] = useState('');
+  const [savingEvent, setSavingEvent] = useState(false);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -26,6 +30,27 @@ export default function CalendarHub() {
     if (!e) return {};
     return (e.estrategia && typeof e.estrategia === 'object') ? e.estrategia : e;
   })();
+
+  const eventos = Array.isArray(currentBusiness?.eventos) ? currentBusiness.eventos : [];
+  const eventosDelDia = (day) => eventos.filter(e => e.fecha === format(day, 'yyyy-MM-dd'));
+  const openEvento = (day) => { setEventDate(format(day, 'yyyy-MM-dd')); setEventTitle(''); setEventModal(true); };
+  const guardarEvento = async () => {
+    if (!eventTitle.trim() || !eventDate) return;
+    setSavingEvent(true);
+    try {
+      const nuevo = { id: Math.random().toString(36).slice(2, 9), fecha: eventDate, titulo: eventTitle.trim() };
+      await db.updateBusiness(currentBusiness.id, { eventos: [...eventos, nuevo] });
+      await refreshBusiness();
+      setEventTitle('');
+      setEventModal(false);
+    } catch (e) { console.error(e); } finally { setSavingEvent(false); }
+  };
+  const eliminarEvento = async (id) => {
+    try {
+      await db.updateBusiness(currentBusiness.id, { eventos: eventos.filter(e => e.id !== id) });
+      await refreshBusiness();
+    } catch (e) { console.error(e); }
+  };
 
   useEffect(() => {
     if (currentBusiness) loadPosts();
@@ -106,11 +131,23 @@ export default function CalendarHub() {
               <span className={cn("text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full", isToday(day) ? "bg-primary text-white" : "text-gray-500")}>
                 {format(day, 'd')}
               </span>
-              <button onClick={() => handleCreatePostInSlot(cloneDay)} className="opacity-0 group-hover:opacity-100 p-1 text-primary hover:bg-primary/5 rounded-lg transition-all">
-                <SafeIcon name="PlusCircle" className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => openEvento(cloneDay)} title="Marcar fecha especial" className="p-1 text-amber-500 hover:bg-amber-50 rounded-lg">
+                  <SafeIcon name="Star" className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleCreatePostInSlot(cloneDay)} title="Crear contenido" className="p-1 text-primary hover:bg-primary/5 rounded-lg">
+                  <SafeIcon name="PlusCircle" className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="space-y-1">
+              {eventosDelDia(cloneDay).map(ev => (
+                <div key={ev.id} className="text-[10px] px-2 py-1 rounded-lg bg-amber-100/80 text-amber-700 font-medium flex items-center gap-1 group/ev">
+                  <SafeIcon name="Star" className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate flex-1">{ev.titulo}</span>
+                  <button onClick={() => eliminarEvento(ev.id)} className="opacity-0 group-hover/ev:opacity-100 text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-2.5 h-2.5" /></button>
+                </div>
+              ))}
               {dayPosts.map(post => (
                 <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm bg-white hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo))}>
                   <p className="font-medium text-gray-800 line-clamp-2 leading-tight">{post.gancho}</p>
@@ -140,6 +177,7 @@ export default function CalendarHub() {
       const key = format(new Date(p.fecha), 'yyyy-MM-dd');
       (byDay[key] = byDay[key] || []).push(p);
     });
+    eventos.forEach(e => { if (e.fecha && !byDay[e.fecha]) byDay[e.fecha] = []; });
     const dias = Object.keys(byDay).sort();
 
     return (
@@ -156,6 +194,12 @@ export default function CalendarHub() {
                 {isToday(fecha) && <span className="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">HOY</span>}
               </div>
               <div className="space-y-2">
+                {eventos.filter(e => e.fecha === key).map(ev => (
+                  <div key={ev.id} className="p-2.5 rounded-xl bg-amber-100/80 text-amber-700 text-sm font-medium flex items-center gap-2">
+                    <SafeIcon name="Star" className="w-3.5 h-3.5 shrink-0" /> <span className="flex-1">{ev.titulo}</span>
+                    <button onClick={() => eliminarEvento(ev.id)} className="text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
                 {byDay[key].map(post => (
                   <div key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)}
                     className={cn("p-3 rounded-xl cursor-pointer border-l-4 bg-white shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo))}>
@@ -210,9 +254,14 @@ export default function CalendarHub() {
       )}
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <h2 className="text-xl md:text-2xl font-heading font-bold capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
-        <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
-          <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> Ideas IA
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate)}>
+            <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
+            <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> Ideas IA
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -235,6 +284,38 @@ export default function CalendarHub() {
         </>
       )}
 
+      {eventModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEventModal(false)} />
+          <Card className="relative w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-2"><SafeIcon name="Star" className="w-5 h-5 text-amber-500" /><h3 className="font-heading font-bold text-lg">Fecha especial</h3></div>
+            <p className="text-xs text-gray-500">La IA tendrá en cuenta esta fecha al sugerir ideas y contenido.</p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-600">Fecha</label>
+              <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-600">¿Qué pasa ese día?</label>
+              <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Día de la madre, lanzamiento, feria" className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+            {eventos.filter(e => e.fecha === eventDate).length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-gray-500">Ya marcadas ese día:</p>
+                {eventos.filter(e => e.fecha === eventDate).map(ev => (
+                  <div key={ev.id} className="flex items-center gap-2 text-sm bg-amber-50 rounded-lg px-2 py-1.5">
+                    <SafeIcon name="Star" className="w-3 h-3 text-amber-500 shrink-0" /><span className="flex-1 truncate">{ev.titulo}</span>
+                    <button onClick={() => eliminarEvento(ev.id)} className="text-gray-400 hover:text-red-500"><SafeIcon name="Trash2" className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setEventModal(false)}>Cerrar</Button>
+              <Button className="flex-1" isLoading={savingEvent} disabled={!eventTitle.trim()} onClick={guardarEvento}>Guardar</Button>
+            </div>
+          </Card>
+        </div>
+      )}
       <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
       <WizardAgent context="calendar" />
     </div>
