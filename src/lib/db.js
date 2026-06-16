@@ -94,5 +94,26 @@ export const db = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  // Cuenta de parrillas/meses de un negocio (para límites de plan)
+  async countGrids(businessId) {
+    const { count, error } = await supabase
+      .from('grids')
+      .select('*', { count: 'exact', head: true })
+      .eq('business_id', businessId);
+    if (error) throw error;
+    return count || 0;
+  },
+
+  // Notificaciones in-app
+  async createNotification(n) {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([n])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 };

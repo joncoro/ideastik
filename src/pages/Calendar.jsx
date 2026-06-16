@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button, Skeleton, Card } from '../components/ui/Components';
@@ -9,11 +9,14 @@ import SafeIcon from '../common/SafeIcon';
 import { cn, getPilarBorder } from '../lib/utils';
 import InspirationPanel from '../components/InspirationPanel';
 import WizardAgent from '../components/WizardAgent';
+import UpsellModal from '../components/UpsellModal';
+import { puedeCrearMes } from '../lib/plan';
 import { motion } from 'framer-motion';
 
 export default function CalendarHub() {
-  const { currentBusiness, refreshBusiness } = useAuth();
+  const { currentBusiness, refreshBusiness, switchBusiness, allBusinesses, profile } = useAuth();
   const navigate = useNavigate();
+  const { bizId } = useParams();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +26,7 @@ export default function CalendarHub() {
   const [eventDate, setEventDate] = useState('');
   const [eventTitle, setEventTitle] = useState('');
   const [savingEvent, setSavingEvent] = useState(false);
+  const [upsell, setUpsell] = useState(false);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -51,6 +55,14 @@ export default function CalendarHub() {
       await refreshBusiness();
     } catch (e) { console.error(e); }
   };
+
+  // Asegura que el calendario muestre el negocio de la URL (no el anterior cuando hay varios)
+  useEffect(() => {
+    if (!bizId || currentBusiness?.id === bizId) return;
+    const found = (allBusinesses || []).find(b => b.id === bizId);
+    if (found) switchBusiness(found);
+    else db.getBusiness(bizId).then(b => { if (b) switchBusiness(b); }).catch(() => {});
+  }, [bizId, currentBusiness?.id, allBusinesses]);
 
   useEffect(() => {
     if (currentBusiness) loadPosts();
@@ -82,6 +94,8 @@ export default function CalendarHub() {
   const handleIdeaSelected = async (idea) => {
     let grid = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
     if (!grid) {
+      const gridsCount = await db.countGrids(currentBusiness.id);
+      if (!puedeCrearMes(profile, gridsCount)) { setIsInspirationOpen(false); setUpsell(true); return; }
       grid = await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
     }
     const newPosts = await db.createPosts([{
@@ -316,6 +330,12 @@ export default function CalendarHub() {
           </Card>
         </div>
       )}
+      <UpsellModal
+        open={upsell}
+        onClose={() => setUpsell(false)}
+        titulo="Planea más meses con Mensual"
+        mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
+      />
       <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
       <WizardAgent context="calendar" />
     </div>

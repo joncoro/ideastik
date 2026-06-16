@@ -6,6 +6,7 @@ import { db } from '../lib/db';
 import supabase from '../supabase/supabase';
 import { generarJSON } from '../lib/ia';
 import { violaReglas } from '../lib/validadores';
+import { puedeCrearNegocio } from '../lib/plan';
 import { Button, Input, Card, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
 import SafeIcon from '../common/SafeIcon';
@@ -68,7 +69,7 @@ const extraerNarrativa = (data) => {
 export default function ChatWizard() {
   const { bizId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, allBusinesses, switchBusiness } = useAuth();
   const scrollRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -145,6 +146,11 @@ export default function ChatWizard() {
             startPhase(biz.current_fase || 'DATOS_NOMBRE', biz);
           }
         } else {
+          // Freemium: el plan gratis permite 1 negocio
+          if (!puedeCrearNegocio(profile, (allBusinesses || []).length)) {
+            navigate('/negocios');
+            return;
+          }
           startPhase('DATOS_NOMBRE');
         }
       } catch (err) {
@@ -166,6 +172,27 @@ export default function ChatWizard() {
     await supabase.from('wizard_messages').insert([{ business_id: bId, role, content, widget }]);
   };
 
+  // Genera opciones de respuesta a la medida del negocio (no listas genéricas).
+  const opcionesTailored = async (kind, biz) => {
+    try {
+      const ctx = `Negocio: ${biz?.nombre || ''}. Qué hace/vende: ${biz?.que_hace || 'no especificado'}. Sector: ${biz?.sector || 'general'}. Ciudad: ${biz?.ciudad || 'no especifica'}.${biz?.diferente ? ` Diferencial: ${biz.diferente}.` : ''}`;
+      const pedir = {
+        diferente: 'Devuelve 5 posibles DIFERENCIALES reales y concretos que un negocio así podría tener frente a su competencia. Prohibido clichés (calidad, pasión, los mejores). Cada uno máximo 5 palabras.',
+        cliente: 'Devuelve 5 perfiles de CLIENTE IDEAL distintos y específicos para ESTE negocio (con pista de edad/contexto/qué le importa). Cada uno máximo 7 palabras. Un peluquero y un contador NO deberían tener los mismos.',
+        insumos: 'Devuelve 4 ERRORES o malentendidos que los clientes de ESTE negocio cometen una y otra vez. Concretos al rubro. Cada uno máximo 8 palabras.'
+      }[kind];
+      if (!pedir) return [];
+      const system = 'Eres estratega de marketing. Generas opciones cortas y específicas al negocio dado, en español. Responde SOLO con JSON válido.';
+      const userMsg = `${ctx}\n\n${pedir}\nResponde SOLO: {"opciones": ["...", "..."]}`;
+      const res = await generarJSON(system, [{ role: 'user', content: userMsg }], 400);
+      const arr = Array.isArray(res) ? res : (res && Array.isArray(res.opciones) ? res.opciones : []);
+      return arr.filter(x => typeof x === 'string' && x.trim()).slice(0, 6);
+    } catch (e) {
+      console.error('opcionesTailored', e);
+      return [];
+    }
+  };
+
   const startPhase = async (fase, biz = businessData, ajuste = null) => {
     const config = WIZARD_PHASES[fase];
     if (!config) return;
@@ -184,28 +211,33 @@ export default function ChatWizard() {
       }
     } else {
       setIsTyping(true);
-      setTimeout(async () => {
-        setIsTyping(false);
-        let widgetData = config.options;
+      // Opciones a la medida del negocio en fases subjetivas (no listas genéricas)
+      const TAILORED = { DATOS_QUE_DIFERENTE: 'diferente', DATOS_CLIENTE: 'cliente', DATOS_INSUMOS: 'insumos' };
+      let widgetData = config.options;
 
-        // Cada widget de selección recibe el ARRAY ya extraído
-        if (fase === 'PV_ELEGIR') widgetData = extraerArray(biz?.pv_opciones);
-        if (fase === 'PILARES_ELEGIR') widgetData = extraerArray(biz?.pilares);
-        if (fase === 'ESTRATEGIA_CONFIRMAR') {
-          const estObj = extraerObjeto(biz?.estrategia);
-          const est = estObj.estrategia && typeof estObj.estrategia === 'object' ? estObj.estrategia : estObj;
-          widgetData = { estrategia: est, opciones: config.options };
-        }
+      // Cada widget de selección recibe el ARRAY ya extraído
+      if (fase === 'PV_ELEGIR') widgetData = extraerArray(biz?.pv_opciones);
+      else if (fase === 'PILARES_ELEGIR') widgetData = extraerArray(biz?.pilares);
+      else if (fase === 'ESTRATEGIA_CONFIRMAR') {
+        const estObj = extraerObjeto(biz?.estrategia);
+        const est = estObj.estrategia && typeof estObj.estrategia === 'object' ? estObj.estrategia : estObj;
+        widgetData = { estrategia: est, opciones: config.options };
+      } else if (TAILORED[fase]) {
+        const ai = await opcionesTailored(TAILORED[fase], biz);
+        if (Array.isArray(ai) && ai.length >= 3) widgetData = ai;
+      } else {
+        await new Promise(r => setTimeout(r, 500));
+      }
 
-        const widget = config.widget ? { type: config.widget, data: widgetData } : null;
-        let added = false;
-        setMessages(prev => {
-          if (prev.some(m => m.content === config.question)) return prev;
-          added = true;
-          return [...prev, { id: Date.now().toString(), role: 'agent', content: config.question, widget }];
-        });
-        if (added && biz?.id) await saveMessage('agent', config.question, widget, biz.id);
-      }, 600);
+      setIsTyping(false);
+      const widget = config.widget ? { type: config.widget, data: widgetData } : null;
+      let added = false;
+      setMessages(prev => {
+        if (prev.some(m => m.content === config.question)) return prev;
+        added = true;
+        return [...prev, { id: Date.now().toString(), role: 'agent', content: config.question, widget }];
+      });
+      if (added && biz?.id) await saveMessage('agent', config.question, widget, biz.id);
     }
   };
 
@@ -270,6 +302,7 @@ export default function ChatWizard() {
     if (!activeBiz) {
       activeBiz = await db.createBusiness(user.id, { nombre: text, current_fase: nextFase });
       setBusinessData(activeBiz);
+      switchBusiness(activeBiz);
       await saveMessage('agent', WIZARD_PHASES.DATOS_NOMBRE.question, null, activeBiz.id);
       await saveMessage('user', text, null, activeBiz.id);
       navigate(`/n/${activeBiz.id}/estrategia`, { replace: true });
@@ -287,6 +320,7 @@ export default function ChatWizard() {
       } catch (e) {
         console.error('Fallo al generar la parrilla:', e);
       }
+      switchBusiness({ ...activeBiz, current_fase: 'COMPLETADO' });
       navigate(`/n/${activeBiz.id}/calendario`);
       return;
     }
@@ -411,6 +445,15 @@ export default function ChatWizard() {
 
     await db.createPosts(posts);
     await db.updateBusiness(biz.id, { current_fase: 'COMPLETADO' });
+    try {
+      await db.createNotification({
+        user_id: biz.user_id || user?.id,
+        business_id: biz.id,
+        title: '¡Tu parrilla está lista! 🎉',
+        message: `Creamos ${posts.length} publicaciones para ${biz.nombre || 'tu negocio'}. Ábrelas y empieza a publicar.`,
+        type: 'INFO'
+      });
+    } catch (e) { console.error('No se pudo crear la notificación', e); }
     setIsTyping(false);
     setCurrentFase('COMPLETADO');
     startPhase('COMPLETADO', { ...biz, current_fase: 'COMPLETADO' });

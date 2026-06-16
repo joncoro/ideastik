@@ -98,6 +98,8 @@ export function AuthProvider({ children }) {
 
   const switchBusiness = (biz) => {
     setCurrentBusiness(biz);
+    // Mantener allBusinesses en sync (incluye negocios recién creados en el wizard)
+    setAllBusinesses(prev => prev.some(b => b.id === biz.id) ? prev.map(b => b.id === biz.id ? biz : b) : [biz, ...prev]);
     localStorage.setItem('ideastik_current_biz_id', biz.id);
   };
 

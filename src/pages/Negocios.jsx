@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, Badge } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
+import UpsellModal from '../components/UpsellModal';
+import { puedeCrearNegocio, esMensual } from '../lib/plan';
 
 export default function Negocios() {
-  const { allBusinesses, switchBusiness, currentBusiness } = useAuth();
+  const { allBusinesses, switchBusiness, currentBusiness, profile } = useAuth();
   const navigate = useNavigate();
+  const [upsell, setUpsell] = useState(false);
+  const intentarCrear = () => {
+    if (puedeCrearNegocio(profile, allBusinesses.length)) navigate('/empezar');
+    else setUpsell(true);
+  };
 
   const abrir = (biz) => {
     switchBusiness(biz);
@@ -20,6 +27,12 @@ export default function Negocios() {
       <div>
         <h2 className="text-2xl md:text-3xl font-heading font-bold mb-1">Mis negocios</h2>
         <p className="text-gray-500 text-sm">Elige un negocio para ver su parrilla, o crea uno nuevo.</p>
+        {!esMensual(profile) && (
+          <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+            <SafeIcon name="Info" className="w-3 h-3" /> Plan gratis: {allBusinesses.length}/1 negocio.
+            <button onClick={() => navigate('/cuenta')} className="text-primary font-medium hover:underline">Mejorar</button>
+          </p>
+        )}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
@@ -56,13 +69,20 @@ export default function Negocios() {
         })}
 
         <button
-          onClick={() => navigate('/empezar')}
+          onClick={intentarCrear}
           className="rounded-3xl border-2 border-dashed border-primary/30 bg-white/30 hover:bg-white/50 transition-colors p-5 flex flex-col items-center justify-center gap-2 text-primary min-h-[150px]"
         >
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center"><SafeIcon name="Plus" className="w-6 h-6" /></div>
           <span className="font-bold text-sm">Crear nuevo negocio</span>
         </button>
       </div>
+
+      <UpsellModal
+        open={upsell}
+        onClose={() => setUpsell(false)}
+        titulo="Vas genial con tu primer negocio"
+        mensaje="El plan gratis incluye 1 negocio. Mejora a Mensual para crear negocios ilimitados y planear varios meses."
+      />
     </div>
   );
 }
