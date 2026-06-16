@@ -117,7 +117,7 @@ export default function Onboarding() {
   const current = steps[step - 1];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-heading font-bold text-primary mb-2">ideastik.</h1>

@@ -7,7 +7,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <header className="px-6 py-4 flex items-center justify-between max-w-6xl mx-auto w-full">
         <h1 className="text-2xl font-heading font-bold text-primary tracking-tighter">ideastik<span className="text-success">.</span></h1>
         <Button variant="ghost" onClick={() => navigate('/login')}>Entrar</Button>

@@ -86,8 +86,8 @@ Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, s
   if (loading || !post) return <div className="p-20 text-center"><Spinner /></div>;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
-      <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shrink-0">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <header className="h-16 bg-white/50 backdrop-blur-xl border-b border-white/40 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <SafeIcon name="ArrowLeft" className="w-5 h-5 text-gray-500" />

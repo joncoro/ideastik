@@ -36,7 +36,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-heading font-bold text-primary mb-2">ideastik<span className="text-success">.</span></h1>
         <p className="text-gray-600">

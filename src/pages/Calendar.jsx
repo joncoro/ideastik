@@ -101,7 +101,7 @@ export default function CalendarHub() {
         const cloneDay = day;
         const dayPosts = posts.filter(p => isSameDay(new Date(p.fecha), cloneDay));
         days.push(
-          <div key={day.toString()} className={cn("min-h-[120px] p-2 border-r border-b border-gray-100 relative group", !isSameMonth(day, monthStart) ? "bg-gray-50/50 text-gray-300" : "bg-white")}>
+          <div key={day.toString()} className={cn("min-h-[120px] p-2 border-r border-b border-gray-100 relative group", !isSameMonth(day, monthStart) ? "bg-white/10 text-gray-300" : "bg-white/35")}>
             <div className="flex justify-between items-start mb-2">
               <span className={cn("text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full", isToday(day) ? "bg-primary text-white" : "text-gray-500")}>
                 {format(day, 'd')}
@@ -224,8 +224,8 @@ export default function CalendarHub() {
           {/* Móvil: lista */}
           <div className="lg:hidden">{renderList()}</div>
           {/* Escritorio: cuadrícula */}
-          <div className="hidden lg:block bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-soft">
-            <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+          <div className="hidden lg:block bg-white/55 backdrop-blur-xl border border-white/50 rounded-3xl overflow-hidden shadow-[0_8px_32px_-10px_rgba(31,31,31,0.12)]">
+            <div className="grid grid-cols-7 bg-white/30 border-b border-white/40">
               {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
                 <div key={d} className="py-3 text-center text-[10px] font-bold text-gray-400 uppercase">{d}</div>
               ))}
