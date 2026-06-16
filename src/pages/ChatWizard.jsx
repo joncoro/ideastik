@@ -602,7 +602,7 @@ export default function ChatWizard() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#FAFAF8] overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden">
       {/* PANEL VISUAL — solo escritorio */}
       <div className="hidden lg:block lg:w-[45%] xl:w-1/2 shrink-0">
         <VisualPanel />
@@ -623,7 +623,7 @@ export default function ChatWizard() {
             const isWidgetFrozen = idx !== messages.length - 1;
             return (
               <motion.div key={msg.id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white border border-gray-100 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
+                <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white/70 backdrop-blur border border-white/60 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
@@ -635,7 +635,7 @@ export default function ChatWizard() {
         </AnimatePresence>
         {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
       </div>
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#FAFAF8] via-[#FAFAF8]/95 to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white/80 via-white/40 to-transparent backdrop-blur-sm">
         <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
           <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
           <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>

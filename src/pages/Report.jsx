@@ -50,7 +50,7 @@ export default function Report() {
     setLoading(false);
   };
 
-  if (loading) return <div className="p-8"><div className="animate-pulse h-64 bg-gray-100 rounded-xl" /></div>;
+  if (loading) return <div className="p-8"><div className="animate-pulse h-64 bg-white/50 rounded-3xl" /></div>;
   if (!stats) return <div className="p-8 text-center text-gray-500">No hay datos para este periodo.</div>;
 
   const pilaresOrden = ['autoridad', 'conexion', 'venta', 'prueba_social', 'educacion'];
@@ -117,7 +117,7 @@ export default function Report() {
             })}
           </div>
 
-          <Card className="p-6 bg-gray-50 border-gray-100">
+          <Card className="p-6 bg-white/40 border-white/50">
             <h4 className="font-bold mb-2 flex items-center gap-2">
               <SafeIcon name="Lightbulb" className="w-4 h-4 text-alert" />
               Tip del Agente

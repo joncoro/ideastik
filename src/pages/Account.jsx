@@ -282,7 +282,7 @@ export default function Account() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl"
+              className="relative w-full max-w-md bg-white/80 backdrop-blur-2xl border border-white/70 rounded-3xl p-8 shadow-2xl"
             >
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
                 <SafeIcon name="AlertTriangle" className="w-8 h-8" />
