@@ -193,13 +193,13 @@ export default function ChatWizard() {
     }
   };
 
-  const startPhase = async (fase, biz = businessData, ajuste = null) => {
+  const startPhase = async (fase, biz = businessData, ajuste = null, force = false) => {
     const config = WIZARD_PHASES[fase];
     if (!config) return;
 
     if (config.isAuto) {
       setIsTyping(true);
-      if (!messages.some(m => m.content === config.question)) {
+      if (force || !messages.some(m => m.content === config.question)) {
         setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: config.question }]);
       }
       try {
@@ -236,7 +236,7 @@ export default function ChatWizard() {
       const widget = config.widget ? { type: config.widget, data: widgetData } : null;
       let added = false;
       setMessages(prev => {
-        if (prev.some(m => m.content === config.question)) return prev;
+        if (!force && prev.some(m => m.content === config.question)) return prev;
         added = true;
         return [...prev, { id: Date.now().toString(), role: 'agent', content: config.question, widget }];
       });
@@ -404,7 +404,7 @@ export default function ChatWizard() {
 
     setIsTyping(false);
     setCurrentFase(nextFase);
-    startPhase(nextFase, updatedBiz);
+    startPhase(nextFase, updatedBiz, null, !!ajuste);
   };
 
   const finalizeParrilla = async (biz) => {
