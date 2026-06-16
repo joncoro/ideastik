@@ -19,27 +19,27 @@ export default function Landing() {
 
   const pasos = [
     { icon: 'MessageCircle', color: 'from-primary to-[#8B5CF6]', n: '01', t: 'Responde', d: 'Preguntas sencillas sobre tu negocio, tu cliente ideal y lo que te hace diferente.' },
-    { icon: 'Layout', color: 'from-[#EC4899] to-[#F59E0B]', n: '02', t: 'Revisa', d: 'La IA arma tu propuesta de valor, tus pilares y llena tu calendario con ideas aterrizadas.' },
-    { icon: 'PenTool', color: 'from-success to-[#37C77E]', n: '03', t: 'Publica', d: 'Cada post con copy, hashtags y llamado a la acción listos para copiar y pegar.' },
+    { icon: 'Layout', color: 'from-[#EC4899] to-[#F59E0B]', n: '02', t: 'Revisa', d: 'Recibes tu propuesta de valor, tus pilares y el calendario lleno de ideas que conectan y venden.' },
+    { icon: 'PenTool', color: 'from-success to-[#37C77E]', n: '03', t: 'Publica', d: 'Cada post con copy, hashtags y llamado a la acción para cerrar la venta. Copiar, pegar y listo.' },
   ];
 
   const beneficios = [
     {
       icon: 'Target', tag: 'Estrategia',
       t: 'Estrategia con criterio de marketer',
-      d: 'No son ideas genéricas. El agente piensa como un estratega: propuesta de valor real, pilares con personalidad y un plan que solo tu negocio podría tener.',
+      d: 'Como tener un estratega de marketing de tu lado: propuesta de valor real, pilares con personalidad y un plan pensado para vender, no para rellenar.',
       checks: ['Propuesta de valor en 3 ángulos', 'Pilares conectados a tu diferencial', 'Tono a la medida de tu cliente'],
     },
     {
-      icon: 'Calendar', tag: 'Calendario',
+      icon: 'Calendar', tag: 'Tu tiempo',
       t: 'Un calendario que se llena solo',
-      d: 'Olvídate de la página en blanco. Recibes el mes completo con formato, canal y horario sugerido para cada publicación.',
-      checks: ['Mes entero en minutos', 'Formato, canal y hora por post', 'Inspiración IA cuando te falten ideas'],
+      d: 'Olvídate de la página en blanco y de las horas perdidas. Recibes el mes completo con formato, canal y horario para cada publicación.',
+      checks: ['Mes entero en minutos', 'Formato, canal y hora por post', 'Ideas frescas cuando te falten'],
     },
     {
       icon: 'Edit2', tag: 'Edición',
       t: 'Todo editable, siempre tuyo',
-      d: 'Ajusta tu propuesta de valor, narrativa, pilares y estrategia cuando quieras. La IA propone, tú tienes la última palabra.',
+      d: 'Ajusta tu propuesta de valor, narrativa, pilares y estrategia cuando quieras. Se propone una versión y tú tienes la última palabra.',
       checks: ['Edita pilares y estrategia', 'Regenera el copy con un clic', 'CTA de WhatsApp automático'],
     },
   ];
@@ -66,14 +66,14 @@ export default function Landing() {
       <section className="max-w-6xl mx-auto w-full px-6 pt-16 pb-24 grid lg:grid-cols-2 gap-12 items-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
           <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-sm font-medium text-primary mb-6">
-            <SafeIcon name="Zap" className="w-4 h-4" /> IA adaptada para negocios reales
+            <SafeIcon name="Zap" className="w-4 h-4" /> Para vender más sin vivir en redes
           </div>
           <h2 className="text-5xl md:text-6xl font-heading font-bold leading-[1.04] tracking-tight text-foreground mb-6">
             Tu mes de contenido,{' '}
-            <span className="bg-gradient-to-r from-primary via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">resuelto en una conversación.</span>
+            <span className="bg-gradient-to-r from-primary via-[#8B5CF6] to-[#EC4899] bg-clip-text text-transparent">listo para vender.</span>
           </h2>
           <p className="text-lg text-gray-600 leading-relaxed mb-8 max-w-xl">
-            Cuéntale a nuestro agente qué hace tu negocio. Arma tu estrategia, redacta los posts y te entrega el calendario del mes. Cero página en blanco.
+            Para emprendedores que no tienen tiempo de pelear con las redes. Cuéntanos qué vendes y te entregamos la estrategia y el calendario del mes, listos para publicar y vender.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button size="lg" className="text-base px-8" onClick={goLogin}>
@@ -133,7 +133,7 @@ export default function Landing() {
       <section id="como" className="max-w-6xl mx-auto w-full px-6 py-20">
         <motion.div {...fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-sm font-bold text-primary uppercase tracking-widest mb-3">Cómo funciona</p>
-          <h3 className="text-3xl md:text-4xl font-heading font-bold tracking-tight">De una charla a tu mes publicado, en 3 pasos</h3>
+          <h3 className="text-3xl md:text-4xl font-heading font-bold tracking-tight">De cero tiempo a un mes que vende, en 3 pasos</h3>
         </motion.div>
         <div className="grid md:grid-cols-3 gap-6">
           {pasos.map((p, i) => (
@@ -215,7 +215,7 @@ export default function Landing() {
             <p className="text-4xl font-heading font-bold mb-1">{formatearPrecio(PLAN_MENSUAL_PRECIO)}<span className="text-base font-medium text-gray-400">/mes</span></p>
             <p className="text-sm text-gray-500 mb-6">Acceso ilimitado. Cancela cuando quieras.</p>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['Publicaciones ilimitadas', 'Inspiración IA sin límite', 'Edita estrategia y pilares', 'CTA de WhatsApp automático'].map(c => (
+              {['Publicaciones ilimitadas', 'Ideas frescas sin límite', 'Edita estrategia y pilares', 'CTA de WhatsApp automático'].map(c => (
                 <li key={c} className="flex items-center gap-2.5 text-sm text-gray-700"><SafeIcon name="Check" className="w-4 h-4 text-success shrink-0" /> {c}</li>
               ))}
             </ul>
@@ -233,8 +233,8 @@ export default function Landing() {
           <div className="absolute -top-16 -right-10 w-72 h-72 rounded-full bg-white/15 blur-3xl" />
           <div className="absolute -bottom-20 -left-10 w-72 h-72 rounded-full bg-[#2BA664]/30 blur-3xl" />
           <div className="relative">
-            <h3 className="text-3xl md:text-5xl font-heading font-bold text-white leading-tight mb-4">¿Le damos vida a tu mes de contenido?</h3>
-            <p className="text-white/80 max-w-xl mx-auto mb-8">Una conversación y tienes tu estrategia, tus pilares y tu calendario listos. Gratis para empezar.</p>
+            <h3 className="text-3xl md:text-5xl font-heading font-bold text-white leading-tight mb-4">Deja de perder tiempo pensando qué publicar.</h3>
+            <p className="text-white/80 max-w-xl mx-auto mb-8">En minutos tienes tu estrategia, tus pilares y el calendario del mes, listos para vender. Gratis para empezar.</p>
             <Button size="lg" variant="secondary" className="text-base px-9 bg-white text-primary hover:bg-white/90 border-0" onClick={goLogin}>
               Crea tu primer mes gratis <SafeIcon name="ArrowRight" className="w-4 h-4 ml-2" />
             </Button>
