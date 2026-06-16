@@ -39,7 +39,10 @@ export default function Settings() {
     sector: '',
     ciudad: '',
     que_hace: '',
-    whatsapp: ''
+    whatsapp: '',
+    link_catalogo: '',
+    link_pago: '',
+    link_web: ''
   });
 
   const [estrategiaForm, setEstrategiaForm] = useState({
@@ -62,7 +65,10 @@ export default function Settings() {
         sector: currentBusiness.sector || '',
         ciudad: currentBusiness.ciudad || '',
         que_hace: currentBusiness.que_hace || '',
-        whatsapp: currentBusiness.whatsapp || ''
+        whatsapp: currentBusiness.whatsapp || '',
+        link_catalogo: currentBusiness.link_catalogo || '',
+        link_pago: currentBusiness.link_pago || '',
+        link_web: currentBusiness.link_web || ''
       });
       const est = normEstrategia(currentBusiness.estrategia);
       const nar = normNarrativa(currentBusiness.narrativa);
@@ -222,7 +228,21 @@ export default function Settings() {
             <div className="space-y-2">
               <Label>WhatsApp para ventas</Label>
               <Input type="tel" value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value })} placeholder="Ej. +57 300 123 4567" />
-              <p className="text-xs text-gray-400">Se insertará automáticamente en el botón de WhatsApp del editor de publicaciones.</p>
+              <p className="text-xs text-gray-400">Se inserta en el botón de WhatsApp del editor de publicaciones.</p>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Link de catálogo</Label>
+                <Input value={formData.link_catalogo} onChange={e => setFormData({ ...formData, link_catalogo: e.target.value })} placeholder="https://..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Link de pago</Label>
+                <Input value={formData.link_pago} onChange={e => setFormData({ ...formData, link_pago: e.target.value })} placeholder="https://..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Web o perfil</Label>
+                <Input value={formData.link_web} onChange={e => setFormData({ ...formData, link_web: e.target.value })} placeholder="https://..." />
+              </div>
             </div>
           </Card>
           <div className="flex justify-end pt-2">

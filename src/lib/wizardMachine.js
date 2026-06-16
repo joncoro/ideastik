@@ -49,10 +49,15 @@ export const WIZARD_PHASES = {
   },
   DATOS_HORAS: {
     question: "Entendido. ¿Cuántas horas a la semana podrías dedicarle a crear el contenido que vamos a planear?",
-    next: 'PV_GENERAR',
+    next: 'DATOS_CONTACTO',
     field: 'horas_semana',
     widget: 'chips',
     options: ['1-3 horas', '4-7 horas', 'Más de 8 horas']
+  },
+  DATOS_CONTACTO: {
+    question: "Para que tus posts cierren ventas: ¿por dónde te compran o te escriben? Déjame tu WhatsApp y los links que uses (catálogo, pago, web). Es opcional, pero hace que tus CTA lleven a la acción real.",
+    next: 'PV_GENERAR',
+    widget: 'contacto_form'
   },
   PV_GENERAR: {
     question: "¡Excelente! Con esta información ya puedo empezar a trabajar. Dame un momento mientras diseño unas propuestas de valor estratégicas para ti...",

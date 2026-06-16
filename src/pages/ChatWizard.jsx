@@ -95,6 +95,7 @@ export default function ChatWizard() {
     - Observaciones reales del dueño (errores que ve en clientes, lo que explica siempre): ${biz?.insumos_reales || 'no especificado'}
     - Propuesta de valor: ${biz?.propuesta_valor || 'aún no definida'}
     - Voz de marca: ${biz?.voz_marca || 'aún no definida'}
+    - Canales de venta (úsalos como CTA cuando sea contenido de venta, NO inventes links): WhatsApp ${biz?.whatsapp || 'no'}, catálogo ${biz?.link_catalogo || 'no'}, link de pago ${biz?.link_pago || 'no'}, web ${biz?.link_web || 'no'}
 
     VOZ DE MARCA (OBLIGATORIA): tiene prioridad sobre cualquier fórmula de marketing o estilo de escritura. Si hay conflicto entre una práctica de copywriting y la voz del dueño, prevalece la voz del dueño. Nunca neutralices, estandarices ni corporativices la voz proporcionada.
 
@@ -292,6 +293,21 @@ export default function ChatWizard() {
     startPhase(nextFase, activeBiz);
   };
 
+  const handleContactoSave = async (fields) => {
+    const next = WIZARD_PHASES[currentFase]?.next;
+    const clean = {};
+    ['whatsapp', 'link_catalogo', 'link_pago', 'link_web'].forEach(k => { if ((fields[k] || '').trim()) clean[k] = fields[k].trim(); });
+    setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: Object.keys(clean).length ? 'Listo, guardé mis datos de contacto.' : 'Sin datos por ahora.' }]);
+    if (businessData && next) {
+      await db.updateBusiness(businessData.id, { ...clean, current_fase: next });
+      await saveMessage('user', Object.keys(clean).length ? 'Datos de contacto guardados' : 'Sin datos de contacto', null, businessData.id);
+      const ab = { ...businessData, ...clean, current_fase: next };
+      setBusinessData(ab);
+      setCurrentFase(next);
+      startPhase(next, ab);
+    }
+  };
+
   const handleAIGeneration = async (fase, biz, retry = false, ajuste = null) => {
     const config = WIZARD_PHASES[fase];
     if (config.aiTask === 'parrilla') { await finalizeParrilla(biz); return; }
@@ -440,6 +456,26 @@ export default function ChatWizard() {
           <button onClick={() => onConfirm(sel.join(', '))} className="mt-2 text-[12px] font-bold text-primary hover:underline flex items-center gap-1">
             Usar selección ({sel.length}) <SafeIcon name="ArrowRight" className="w-3 h-3" />
           </button>
+        )}
+      </div>
+    );
+  };
+
+  const ContactoForm = ({ onSave, onSkip, disabled }) => {
+    const [f, setF] = useState({ whatsapp: '', link_catalogo: '', link_pago: '', link_web: '' });
+    const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+    const cls = "w-full h-10 rounded-xl border border-white/70 bg-white/70 px-3 text-[13px] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40";
+    return (
+      <div className="mt-3 space-y-2 max-w-md">
+        <input disabled={disabled} value={f.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="WhatsApp (ej. +57 300 123 4567)" className={cls} />
+        <input disabled={disabled} value={f.link_catalogo} onChange={e => set('link_catalogo', e.target.value)} placeholder="Link de catálogo o brochure" className={cls} />
+        <input disabled={disabled} value={f.link_pago} onChange={e => set('link_pago', e.target.value)} placeholder="Link de pago (Mercado Pago, Wompi, Bold...)" className={cls} />
+        <input disabled={disabled} value={f.link_web} onChange={e => set('link_web', e.target.value)} placeholder="Web o perfil (Instagram, sitio...)" className={cls} />
+        {!disabled && (
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => onSave(f)} className="px-4 py-2 rounded-xl text-[13px] font-bold bg-gradient-to-br from-primary to-[#8B5CF6] text-white shadow-md">Guardar y seguir</button>
+            <button onClick={onSkip} className="px-4 py-2 rounded-xl text-[13px] font-medium text-gray-400 hover:text-gray-600">Saltar</button>
+          </div>
         )}
       </div>
     );
@@ -716,6 +752,7 @@ export default function ChatWizard() {
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'suggest' && <SuggestWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'multi' && <MultiWidget data={msg.widget.data} onConfirm={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'contacto_form' && <ContactoForm onSave={handleContactoSave} onSkip={() => handleSelection('Saltar por ahora')} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'suggest_skip' && <SuggestSkipWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} onSkip={() => handleSelection('Saltar por ahora')} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}

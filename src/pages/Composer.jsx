@@ -40,7 +40,8 @@ export default function Composer() {
       const b = currentBusiness || {};
       const system = `Eres el redactor de contenido de Ideastik para el negocio "${b.nombre || 'este negocio'}". Escribes copy en español, listo para publicar en redes sociales.
 Contexto del negocio: vende ${b.que_hace || 'su producto o servicio'}; su diferencial real es ${b.diferente || 'su forma de trabajar'}; sector ${b.sector || 'general'}; cliente ideal ${b.cliente_ideal || 'su audiencia'}.${b.propuesta_valor ? ` Propuesta de valor: ${b.propuesta_valor}.` : ''}
-Reglas innegociables: nunca uses el precio como diferenciador; nunca la fórmula "no vendemos X, vendemos Y"; el diferencial vive en la percepción (criterio, asesoría, personalización, conocimiento, sistema, cumplimiento). Háblale directo al cliente ideal y sé específico a ESTE negocio, nada genérico.`;
+Reglas innegociables: nunca uses el precio como diferenciador; nunca la fórmula "no vendemos X, vendemos Y"; el diferencial vive en la percepción (criterio, asesoría, personalización, conocimiento, sistema, cumplimiento). Háblale directo al cliente ideal y sé específico a ESTE negocio, nada genérico.
+Canales de venta para el CTA (usa el que aplique, NO inventes links): WhatsApp ${b.whatsapp || 'no disponible'}, catálogo ${b.link_catalogo || 'no disponible'}, link de pago ${b.link_pago || 'no disponible'}, web ${b.link_web || 'no disponible'}.`;
       const userMsg = `Escribe el copy para esta publicación:
 - Pilar: ${post.pilar || 'general'}${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}
 - Formato: ${post.formato || 'Reel'}
@@ -67,16 +68,25 @@ Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, s
   // Inserta un llamado a la acción al final del copy. Usa el WhatsApp del negocio
   // si está configurado; si no, deja una plantilla para que el usuario lo complete.
   const handleInsertCTA = (tipo) => {
-    const wpp = currentBusiness?.whatsapp || currentBusiness?.telefono;
+    const b = currentBusiness || {};
+    const wpp = b.whatsapp || b.telefono;
     let cta = '';
     if (tipo === 'whatsapp') {
       cta = wpp
         ? `\n\n📲 Escríbeme por WhatsApp al ${wpp} y te ayudo a elegir lo ideal para ti.`
         : `\n\n📲 Escríbeme por WhatsApp [tu número aquí] y te ayudo a elegir lo ideal para ti.`;
+    } else if (tipo === 'catalogo') {
+      cta = b.link_catalogo
+        ? `\n\n📖 Mira todo el catálogo aquí: ${b.link_catalogo}`
+        : `\n\n📖 Pídeme el catálogo completo por mensaje directo.`;
     } else if (tipo === 'pedido') {
-      cta = `\n\n🛒 Haz tu pedido hoy: [link o número]. Cupos/unidades limitadas.`;
+      cta = b.link_pago
+        ? `\n\n🛒 Haz tu pedido aquí: ${b.link_pago}`
+        : `\n\n🛒 Haz tu pedido hoy por mensaje directo. Cupos/unidades limitadas.`;
     } else if (tipo === 'perfil') {
-      cta = `\n\n👀 Mira más en mi perfil y guarda este post si te sirvió.`;
+      cta = b.link_web
+        ? `\n\n👀 Mira más aquí: ${b.link_web}`
+        : `\n\n👀 Mira más en mi perfil y guarda este post si te sirvió.`;
     }
     const nuevo = (copy || '').trimEnd() + cta;
     setCopy(nuevo);
@@ -133,6 +143,9 @@ Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, s
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => handleInsertCTA('whatsapp')} className="text-xs px-3 py-2 rounded-full bg-success/10 text-success font-medium hover:bg-success/20 transition-colors flex items-center gap-1.5">
                   <SafeIcon name="MessageCircle" className="w-3.5 h-3.5" /> WhatsApp
+                </button>
+                <button onClick={() => handleInsertCTA('catalogo')} className="text-xs px-3 py-2 rounded-full bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5">
+                  <SafeIcon name="BookOpen" className="w-3.5 h-3.5" /> Catálogo
                 </button>
                 <button onClick={() => handleInsertCTA('pedido')} className="text-xs px-3 py-2 rounded-full bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors flex items-center gap-1.5">
                   <SafeIcon name="ShoppingBag" className="w-3.5 h-3.5" /> Hacer pedido
