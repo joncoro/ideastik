@@ -222,6 +222,9 @@ export default function ChatWizard() {
         const estObj = extraerObjeto(biz?.estrategia);
         const est = estObj.estrategia && typeof estObj.estrategia === 'object' ? estObj.estrategia : estObj;
         widgetData = { estrategia: est, opciones: config.options };
+      } else if (fase === 'NARRATIVA_CONFIRMAR') {
+        const nObj = extraerObjeto(biz?.narrativa);
+        widgetData = { narrativa: extraerNarrativa(biz?.narrativa), tono: nObj.tono || '', opciones: config.options };
       } else if (TAILORED[fase]) {
         const ai = await opcionesTailored(TAILORED[fase], biz);
         if (Array.isArray(ai) && ai.length >= 3) widgetData = ai;
@@ -626,6 +629,43 @@ export default function ChatWizard() {
   };
 
   // ---------- TARJETA DE ESTRATEGIA (mapa visual) ----------
+  const NarrativaWidget = ({ data, onSelect, disabled }) => {
+    const narrativa = (data && data.narrativa) || '';
+    const tono = (data && data.tono) || '';
+    const opciones = (data && data.opciones) || ['¡Me encanta!', 'Ajustemos algo'];
+    return (
+      <div className="mt-4 w-full space-y-4">
+        <Card className="p-0 overflow-hidden border-[#EC4899]/20 shadow-sm">
+          <div className="bg-gradient-to-r from-[#EC4899] to-primary px-5 py-3">
+            <p className="text-white text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
+              <SafeIcon name="Heart" className="w-3.5 h-3.5" /> Tu narrativa de marca
+            </p>
+          </div>
+          {narrativa ? (
+            <div className="p-5 space-y-3">
+              <p className="text-[15px] text-gray-800 leading-relaxed font-medium whitespace-pre-line">{narrativa}</p>
+              {tono && (
+                <div className="flex items-start gap-2 pt-3 border-t border-gray-100">
+                  <SafeIcon name="MessageSquare" className="w-3.5 h-3.5 text-[#EC4899] mt-0.5 shrink-0" />
+                  <p className="text-xs text-gray-700"><span className="font-bold text-gray-500 uppercase text-[10px] mr-1">Tono:</span>{tono}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-5 text-center text-xs text-gray-400 italic">No se pudo cargar la narrativa. Puedes ajustarla o continuar.</div>
+          )}
+        </Card>
+        <div className="flex flex-wrap gap-2">
+          {opciones.map(opt => (
+            <button key={opt} disabled={disabled} onClick={() => onSelect(opt)} className={cn("px-4 py-2 rounded-full text-sm font-medium transition-all border shadow-sm", disabled ? "bg-gray-100 text-gray-400" : opt.charAt(0) === '\u00a1' ? "bg-primary text-white border-primary hover:bg-primary/90" : "bg-white border-primary/20 text-primary hover:bg-primary hover:text-white")}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const EstrategiaWidget = ({ data, onSelect, disabled }) => {
     const est = (data && data.estrategia) || {};
     const opciones = (data && data.opciones) || ['¡Vamos!', 'Revisar detalles'];
@@ -802,6 +842,7 @@ export default function ChatWizard() {
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'estrategia_card' && <EstrategiaWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'narrativa_card' && <NarrativaWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
               </motion.div>
             );
           })}

@@ -90,7 +90,7 @@ export const WIZARD_PHASES = {
     question: "Aquí tienes el corazón de tu comunicación. ¿Qué te parece este enfoque?",
     next: 'PILARES_GENERAR',
     field: 'narrativa_ok',
-    widget: 'chips',
+    widget: 'narrativa_card',
     options: ['¡Me encanta!', 'Ajustemos algo']
   },
   PILARES_GENERAR: {
