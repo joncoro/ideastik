@@ -35,10 +35,17 @@ export const WIZARD_PHASES = {
   },
   DATOS_CLIENTE: {
     question: "Ahora lo importante: ¿a quién le vendes? Elige un punto de partida y complétalo (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
-    next: 'DATOS_HORAS',
+    next: 'DATOS_INSUMOS',
     field: 'cliente_ideal',
     widget: 'suggest',
     options: ['Jóvenes que buscan tendencia', 'Familias prácticas', 'Profesionales ocupados', 'Clientes premium y exigentes', 'Otros negocios (B2B)']
+  },
+  DATOS_INSUMOS: {
+    question: "Una última, opcional: ¿qué error ves cometer a tus clientes una y otra vez, o qué les explicas siempre? Ojo: si la respondes, tu contenido se siente mucho más humano y tuyo (menos a robot). Si tienes prisa, puedes saltarla.",
+    next: 'DATOS_HORAS',
+    field: 'insumos_reales',
+    widget: 'suggest_skip',
+    options: ['Creen que lo barato sale igual', 'No saben cómo elegir bien', 'Esperan hasta el último momento', 'Subestiman el detalle que marca la diferencia']
   },
   DATOS_HORAS: {
     question: "Entendido. ¿Cuántas horas a la semana podrías dedicarle a crear el contenido que vamos a planear?",

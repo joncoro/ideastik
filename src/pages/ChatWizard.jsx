@@ -92,6 +92,7 @@ export default function ChatWizard() {
     - Diferencial real: ${biz?.diferente || 'no especificado'}
     - Sector: ${biz?.sector || 'general'}
     - Cliente ideal: ${biz?.cliente_ideal || 'no especificado'}
+    - Observaciones reales del dueño (errores que ve en clientes, lo que explica siempre): ${biz?.insumos_reales || 'no especificado'}
     - Propuesta de valor: ${biz?.propuesta_valor || 'aún no definida'}
     - Voz de marca: ${biz?.voz_marca || 'aún no definida'}
 
@@ -109,7 +110,7 @@ export default function ChatWizard() {
     ORDEN DE PRIORIDAD: 1) casos reales 2) errores del cliente 3) insights del sector 4) decisiones de compra 5) detrás de cámaras 6) tendencias 7) motivación 8) inspiración. Prioriza los niveles superiores.
 
     PRINCIPIO DE HUMANIDAD: prioriza observaciones reales sobre explicaciones teóricas. Habla como alguien que trabaja todos los días en este negocio. Prefiere ejemplos, situaciones, errores, anécdotas y decisiones antes que conceptos abstractos. Entre dos formas de decir lo mismo, elige la más concreta y humana. Prohibido el lenguaje de departamento de marketing o RR.PP. ("entendemos la importancia de", "en el entorno actual", "es fundamental considerar", "las empresas enfrentan desafíos"): nadie habla así.
-    SEÑALES DE CONTENIDO HUMANO (priorízalas frente a consejos genéricos): algo que sorprendió al negocio; un error que comete el cliente; una decisión difícil; algo que cambió de opinión al equipo; un detalle detrás de cámaras; una conversación real con clientes; un patrón observado muchas veces. Pregúntate "¿qué pasó realmente?" antes de "¿qué consejo de marketing puedo dar?".
+    SEÑALES DE CONTENIDO HUMANO (priorízalas frente a consejos genéricos): algo que sorprendió al negocio; un error que comete el cliente; una decisión difícil; algo que cambió de opinión al equipo; un detalle detrás de cámaras; una conversación real con clientes; un patrón observado muchas veces. Pregúntate "¿qué pasó realmente?" antes de "¿qué consejo de marketing puedo dar?". Si el dueño dio "Observaciones reales", úsalas como PRIMERA fuente de ideas, ejemplos y ángulos.
 
     CALIDAD: cada salida debe ser específica, relevante para el cliente ideal, accionable, basada en experiencia real, diferenciadora y difícil de copiar. Apunta a efectos como "no lo había pensado así", "cometí ese error" o "necesito hablar con esta empresa". Si algo no cumple, reemplázalo.
 
@@ -207,6 +208,20 @@ export default function ChatWizard() {
   };
 
   const handleSelection = async (text, value) => {
+    if (text === 'Saltar por ahora') {
+      const cfgSkip = WIZARD_PHASES[currentFase];
+      const nextSkip = cfgSkip?.next;
+      setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: 'Saltar por ahora' }]);
+      if (businessData && nextSkip) {
+        await db.updateBusiness(businessData.id, { current_fase: nextSkip });
+        await saveMessage('user', 'Saltar por ahora', null, businessData.id);
+        const ab = { ...businessData, current_fase: nextSkip };
+        setBusinessData(ab);
+        setCurrentFase(nextSkip);
+        startPhase(nextSkip, ab);
+      }
+      return;
+    }
     if (text === 'Reintentar generación') {
       setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
       startPhase(currentFase);
@@ -404,6 +419,24 @@ export default function ChatWizard() {
             {opt}
           </button>
         ))}
+      </div>
+    </div>
+  );
+
+  const SuggestSkipWidget = ({ data, onPick, onSkip, disabled }) => (
+    <div className="mt-3">
+      <p className="text-[11px] text-gray-400 mb-2">Toca un ejemplo para usarlo (puedes editarlo) o escribe el tuyo. Responderla humaniza mucho tu contenido; si tienes prisa, sáltala.</p>
+      <div className="flex flex-wrap gap-2 items-center">
+        {Array.isArray(data) && data.map(opt => (
+          <button key={opt} disabled={disabled} onClick={() => onPick(opt)} className={cn("px-3 py-1.5 rounded-full text-[13px] font-medium transition-all border", disabled ? "bg-gray-100 text-gray-400 border-gray-100" : "bg-white/70 border-primary/20 text-gray-700 hover:border-primary hover:text-primary")}>
+            {opt}
+          </button>
+        ))}
+        {!disabled && (
+          <button onClick={onSkip} className="px-3 py-1.5 rounded-full text-[13px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
+            Saltar por ahora →
+          </button>
+        )}
       </div>
     </div>
   );
@@ -660,6 +693,7 @@ export default function ChatWizard() {
                 <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white/70 backdrop-blur border border-white/60 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'suggest' && <SuggestWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'suggest_skip' && <SuggestSkipWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} onSkip={() => handleSelection('Saltar por ahora')} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
