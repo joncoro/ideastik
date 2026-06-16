@@ -23,7 +23,7 @@ export const WIZARD_PHASES = {
     question: "Interesante... ¿Qué te hace realmente diferente a tu competencia? Elige una idea para empezar o escríbela a tu manera.",
     next: 'DATOS_SECTOR',
     field: 'diferente',
-    widget: 'suggest',
+    widget: 'multi',
     options: ['Atención personalizada', 'Calidad y proceso cuidado', 'Conocimiento experto', 'Rapidez y cumplimiento', 'Experiencia única', 'Hecho a mano / artesanal']
   },
   DATOS_SECTOR: {
@@ -37,7 +37,7 @@ export const WIZARD_PHASES = {
     question: "Ahora lo importante: ¿a quién le vendes? Elige un punto de partida y complétalo (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
     next: 'DATOS_INSUMOS',
     field: 'cliente_ideal',
-    widget: 'suggest',
+    widget: 'multi',
     options: ['Jóvenes que buscan tendencia', 'Familias prácticas', 'Profesionales ocupados', 'Clientes premium y exigentes', 'Otros negocios (B2B)']
   },
   DATOS_INSUMOS: {
@@ -71,7 +71,7 @@ export const WIZARD_PHASES = {
     question: "Antes de escribir tu narrativa: ¿cómo quieres que se SIENTA tu marca cuando alguien la lee? Elige una vibra o descríbela con tus palabras.",
     next: 'NARRATIVA_GENERAR',
     field: 'voz_marca',
-    widget: 'suggest',
+    widget: 'multi',
     options: ['Cercana, como un amigo', 'Experta y confiable', 'Inspiradora y con energía', 'Cálida y sin juicio', 'Fresca y divertida', 'Premium y elegante']
   },
   NARRATIVA_GENERAR: {

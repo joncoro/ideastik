@@ -423,6 +423,28 @@ export default function ChatWizard() {
     </div>
   );
 
+  const MultiWidget = ({ data, onConfirm, disabled }) => {
+    const [sel, setSel] = useState([]);
+    const toggle = (opt) => setSel(prev => prev.includes(opt) ? prev.filter(x => x !== opt) : [...prev, opt]);
+    return (
+      <div className="mt-3">
+        <p className="text-[11px] text-gray-400 mb-2">Elige una o varias, o escribe la tuya.</p>
+        <div className="flex flex-wrap gap-2">
+          {Array.isArray(data) && data.map(opt => (
+            <button key={opt} disabled={disabled} onClick={() => toggle(opt)} className={cn("px-3 py-1.5 rounded-full text-[13px] font-medium transition-all border flex items-center gap-1", disabled ? "bg-gray-100 text-gray-400 border-gray-100" : sel.includes(opt) ? "bg-primary text-white border-primary" : "bg-white/70 border-primary/20 text-gray-700 hover:border-primary hover:text-primary")}>
+              {sel.includes(opt) && <SafeIcon name="Check" className="w-3 h-3" />}{opt}
+            </button>
+          ))}
+        </div>
+        {!disabled && sel.length > 0 && (
+          <button onClick={() => onConfirm(sel.join(', '))} className="mt-2 text-[12px] font-bold text-primary hover:underline flex items-center gap-1">
+            Usar selección ({sel.length}) <SafeIcon name="ArrowRight" className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const SuggestSkipWidget = ({ data, onPick, onSkip, disabled }) => (
     <div className="mt-3">
       <p className="text-[11px] text-gray-400 mb-2">Toca un ejemplo para usarlo (puedes editarlo) o escribe el tuyo. Responderla humaniza mucho tu contenido; si tienes prisa, sáltala.</p>
@@ -693,6 +715,7 @@ export default function ChatWizard() {
                 <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white/70 backdrop-blur border border-white/60 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'suggest' && <SuggestWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'multi' && <MultiWidget data={msg.widget.data} onConfirm={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'suggest_skip' && <SuggestSkipWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} onSkip={() => handleSelection('Saltar por ahora')} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
