@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import NotificationCenter from './NotificationCenter';
 export default function Layout() {
   const { user, currentBusiness, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (!user) return <Outlet />;
 
@@ -17,6 +18,7 @@ export default function Layout() {
 
   const navItems = [
     { name: 'Calendario', path: `/n/${currentBusiness?.id}/calendario`, icon: 'Calendar' },
+    { name: 'Negocios', path: `/negocios`, icon: 'Grid' },
     { name: 'Ajustes', path: `/n/${currentBusiness?.id}/ajustes`, icon: 'Sliders' },
     { name: 'Cuenta', path: `/cuenta`, icon: 'User' },
   ];
@@ -49,7 +51,15 @@ export default function Layout() {
       </aside>
       <main className="flex-1 overflow-y-auto pb-20 lg:pb-0 relative">
         <header className="bg-white/40 backdrop-blur-xl border-b border-white/40 px-6 h-16 flex items-center justify-between sticky top-0 z-10 lg:bg-transparent lg:border-none lg:backdrop-blur-none">
-          <h1 className="lg:hidden text-xl font-heading font-bold text-primary">ideastik.</h1>
+          {currentBusiness ? (
+            <button onClick={() => navigate('/negocios')} className="lg:hidden flex items-center gap-2 max-w-[62%]">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-[#8B5CF6] text-white flex items-center justify-center font-bold text-sm shrink-0">{currentBusiness.nombre?.charAt(0)}</div>
+              <span className="font-heading font-bold text-sm text-gray-800 truncate">{currentBusiness.nombre}</span>
+              <SafeIcon name="ChevronDown" className="w-4 h-4 text-gray-400 shrink-0" />
+            </button>
+          ) : (
+            <h1 className="lg:hidden text-xl font-heading font-bold text-primary">ideastik.</h1>
+          )}
           <div className="flex items-center gap-4">
             <NotificationCenter />
           </div>

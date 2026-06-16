@@ -12,6 +12,7 @@ const Account = lazy(() => import('./pages/Account'));
 const Report = lazy(() => import('./pages/Report'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ChatWizard = lazy(() => import('./pages/ChatWizard'));
+const Negocios = lazy(() => import('./pages/Negocios'));
 
 const HomeRedirect = () => {
   const { currentBusiness, allBusinesses, loading, user } = useAuth();
@@ -28,14 +29,7 @@ const HomeRedirect = () => {
     return <Navigate to="/empezar" replace />;
   }
 
-  const business = currentBusiness || allBusinesses[0];
-  const isParrillaReady = business.current_fase === 'COMPLETADO' || business.current_fase === 'FIN';
-
-  if (isParrillaReady) {
-    return <Navigate to={`/n/${business.id}/calendario`} replace />;
-  }
-
-  return <Navigate to={`/n/${business.id}/estrategia`} replace />;
+  return <Navigate to="/negocios" replace />;
 };
 
 const ProtectedRoute = ({ children }) => {
@@ -87,6 +81,7 @@ export default function App() {
             <Route path="/n/:bizId/post/:postId" element={<Composer />} />
             <Route path="/n/:bizId/reporte/:mes" element={<Report />} />
             <Route path="/n/:bizId/ajustes" element={<Settings />} />
+            <Route path="/negocios" element={<Negocios />} />
             <Route path="/cuenta" element={<Account />} />
           </Route>
 
