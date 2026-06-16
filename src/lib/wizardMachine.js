@@ -20,9 +20,11 @@ export const WIZARD_PHASES = {
     field: 'que_hace'
   },
   DATOS_QUE_DIFERENTE: {
-    question: "Interesante... ¿Qué dirías que es eso que te hace realmente diferente a tu competencia?",
+    question: "Interesante... ¿Qué te hace realmente diferente a tu competencia? Elige una idea para empezar o escríbela a tu manera.",
     next: 'DATOS_SECTOR',
-    field: 'diferente'
+    field: 'diferente',
+    widget: 'suggest',
+    options: ['Atención personalizada', 'Calidad y proceso cuidado', 'Conocimiento experto', 'Rapidez y cumplimiento', 'Experiencia única', 'Hecho a mano / artesanal']
   },
   DATOS_SECTOR: {
     question: "Perfecto. ¿En qué sector clasificarías tu negocio?",
@@ -32,9 +34,11 @@ export const WIZARD_PHASES = {
     options: ['Gastronomía', 'Belleza', 'Salud', 'Tecnología', 'Moda', 'Servicios', 'Otro']
   },
   DATOS_CLIENTE: {
-    question: "Ahora lo más importante: ¿a quién te imaginas cuando piensas en tu cliente ideal? Descríbeme a esa persona (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
+    question: "Ahora lo importante: ¿a quién le vendes? Elige un punto de partida y complétalo (edad, qué le importa, qué problema tiene). Mientras mejor lo conozcas, mejor será tu estrategia.",
     next: 'DATOS_HORAS',
-    field: 'cliente_ideal'
+    field: 'cliente_ideal',
+    widget: 'suggest',
+    options: ['Jóvenes que buscan tendencia', 'Familias prácticas', 'Profesionales ocupados', 'Clientes premium y exigentes', 'Otros negocios (B2B)']
   },
   DATOS_HORAS: {
     question: "Entendido. ¿Cuántas horas a la semana podrías dedicarle a crear el contenido que vamos a planear?",
@@ -52,16 +56,23 @@ export const WIZARD_PHASES = {
   },
   PV_ELEGIR: {
     question: "He diseñado estas propuestas basadas en tu diferencial. ¿Cuál resuena más contigo?",
-    next: 'NARRATIVA_GENERAR',
+    next: 'NARRATIVA_VOZ',
     field: 'propuesta_valor',
     widget: 'pv_options'
   },
+  NARRATIVA_VOZ: {
+    question: "Antes de escribir tu narrativa: ¿cómo quieres que se SIENTA tu marca cuando alguien la lee? Elige una vibra o descríbela con tus palabras.",
+    next: 'NARRATIVA_GENERAR',
+    field: 'voz_marca',
+    widget: 'suggest',
+    options: ['Cercana, como un amigo', 'Experta y confiable', 'Inspiradora y con energía', 'Cálida y sin juicio', 'Fresca y divertida', 'Premium y elegante']
+  },
   NARRATIVA_GENERAR: {
-    question: "¡Gran elección! Ahora estoy redactando la narrativa de tu marca para que tus mensajes sean coherentes...",
+    question: "¡Gran elección! Ahora redacto la narrativa de tu marca con la voz que pediste, para que todo suene a ti...",
     next: 'NARRATIVA_CONFIRMAR',
     isAuto: true,
     aiTask: 'narrativa',
-    prompt: "Escribe la narrativa de marca en máximo 55 palabras con esta lógica: (1) parte de una creencia o tensión real del cliente ideal; (2) muestra cómo este negocio la resuelve gracias a su diferencial; (3) cierra con lo que eso significa para el cliente. Que suene humana, específica y coherente con la propuesta de valor elegida; nada de frases de catálogo ni clichés. Define además el REGISTRO DE TONO según el negocio y cliente (cercano y de tú a tú para moda/belleza/consumo; empático y sin juicio para servicios personales y del hogar; profesional pero humano y con datos para B2B y servicios profesionales). Responde SOLO con JSON válido: {\"narrativa\": \"texto\", \"tono\": \"una frase que describe el tono recomendado\"}"
+    prompt: "Escribe la narrativa de marca en máximo 55 palabras, profundamente personalizada. Ánclala en tres cosas: el diferencial real, la propuesta de valor elegida y SOBRE TODO la 'Voz de marca' del system prompt. Lógica: (1) parte de una creencia o tensión real del cliente ideal; (2) muestra cómo este negocio la resuelve gracias a su diferencial; (3) cierra con lo que eso significa para el cliente. Debe sonar EXACTAMENTE con esa voz, ser tan precisa y propia que el dueño piense 'no lo habría sabido decir así de bien yo solo', sin clichés ni frases de catálogo. El 'tono' describe esa voz en una frase accionable. Responde SOLO con JSON válido: {\"narrativa\": \"texto\", \"tono\": \"una frase que describe el tono\"}"
   },
   NARRATIVA_CONFIRMAR: {
     question: "Aquí tienes el corazón de tu comunicación. ¿Qué te parece este enfoque?",

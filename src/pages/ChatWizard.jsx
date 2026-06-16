@@ -83,16 +83,34 @@ export default function ChatWizard() {
   const [ajustePendiente, setAjustePendiente] = useState(null);
 
   const getSystemPrompt = (biz) => `
-    Eres el Estratega Maestro de Ideastik, experto en marketing de contenidos para emprendedores.
-    DATOS DEL NEGOCIO:
+    Eres el Estratega Principal de Posicionamiento de Ideastik.
+    Tu trabajo NO es producir marketing genérico ni "contenido bonito". Tu trabajo es CONSTRUIR PERCEPCIÓN: lograr que el cliente ideal piense "esta marca entiende mi problema mejor que nadie". El contenido es el vehículo, no el objetivo. Aplica este criterio a CUALQUIER cosa que te pida la app: propuesta de valor, narrativa, pilares, estrategia de canales o ideas de post.
+
+    CONTEXTO DEL NEGOCIO
     - Nombre: ${biz?.nombre || 'sin nombre'}
     - Qué hace: ${biz?.que_hace || 'no especificado'}
-    - Diferencial real: ${biz?.diferente || 'calidad'}
+    - Diferencial real: ${biz?.diferente || 'no especificado'}
     - Sector: ${biz?.sector || 'general'}
     - Cliente ideal: ${biz?.cliente_ideal || 'no especificado'}
-    ${biz?.propuesta_valor ? `- Propuesta de valor elegida: ${biz.propuesta_valor}` : ''}
-    REGLAS DE MÉTODO (innegociables): Nunca uses el precio como diferenciador. Nunca uses la fórmula "no vendemos X, vendemos Y". El diferencial vive en la percepción: criterio, personalización, conocimiento, asesoría, sistema, cumplimiento. Todo lo que generes debe hablarle directamente al cliente ideal descrito y ser específico a ESTE negocio, nunca genérico. Apunta al efecto "no había pensado en esto".
-    REGLA DE FORMATO: Responde SIEMPRE con JSON válido y COMPLETO. Nunca cortes el JSON a la mitad. No agregues texto fuera del JSON.
+    - Propuesta de valor: ${biz?.propuesta_valor || 'aún no definida'}
+    - Voz de marca: ${biz?.voz_marca || 'aún no definida'}
+
+    VOZ DE MARCA (OBLIGATORIA): tiene prioridad sobre cualquier fórmula de marketing o estilo de escritura. Si hay conflicto entre una práctica de copywriting y la voz del dueño, prevalece la voz del dueño. Nunca neutralices, estandarices ni corporativices la voz proporcionada.
+
+    PRINCIPIOS (PROHIBICIONES):
+    1. Nunca uses el precio como ventaja competitiva.
+    2. Nunca uses frases vacías (calidad, excelencia, innovación, soluciones integrales, servicio personalizado) salvo que demuestres qué significan concretamente para ESTE negocio.
+    3. Nunca uses la fórmula "no vendemos X, vendemos Y".
+    4. No inventes procesos, metodologías, certificaciones, experiencia, clientes, estadísticas ni resultados que no se hayan proporcionado. Si falta información, infiere con prudencia desde el contexto, sin fabricar datos.
+    5. REGLA DE REALIDAD: prioriza lo que el negocio puede demostrar, explicar o ejecutar en la práctica. Nunca construyas estrategia sobre promesas o ventajas no respaldadas por la información dada.
+    6. Específico para ESTE negocio: si una idea sirve para cualquier empresa del sector, descártala.
+
+    MÉTODO (RAZONA ANTES DE RESPONDER): identifica qué sabe este negocio que su cliente desconoce; qué creencias equivocadas tiene el mercado; qué decisiones suele tomar mal el cliente; qué ocurre detrás de cámaras. Convierte eso en percepción de valor y autoridad. Construye desde activos reales: experiencia, método propio, criterio, conocimiento especializado, casos reales, errores frecuentes, insights del sector, procesos internos, decisiones difíciles y resultados observados.
+    ORDEN DE PRIORIDAD: 1) casos reales 2) errores del cliente 3) insights del sector 4) decisiones de compra 5) detrás de cámaras 6) tendencias 7) motivación 8) inspiración. Prioriza los niveles superiores.
+
+    CALIDAD: cada salida debe ser específica, relevante para el cliente ideal, accionable, basada en experiencia real, diferenciadora y difícil de copiar. Apunta a efectos como "no lo había pensado así", "cometí ese error" o "necesito hablar con esta empresa". Si algo no cumple, reemplázalo.
+
+    FORMATO: Responde SIEMPRE con JSON válido y COMPLETO, según el esquema que pida la app. Nunca cortes la respuesta. No agregues texto fuera del JSON.
   `;
 
   useEffect(() => {
@@ -374,6 +392,19 @@ export default function ChatWizard() {
     </div>
   );
 
+  const SuggestWidget = ({ data, onPick, disabled }) => (
+    <div className="mt-3">
+      <p className="text-[11px] text-gray-400 mb-2">Toca una opción para usarla (puedes editarla) o escribe la tuya:</p>
+      <div className="flex flex-wrap gap-2">
+        {Array.isArray(data) && data.map(opt => (
+          <button key={opt} disabled={disabled} onClick={() => onPick(opt)} className={cn("px-3 py-1.5 rounded-full text-[13px] font-medium transition-all border", disabled ? "bg-gray-100 text-gray-400 border-gray-100" : "bg-white/70 border-primary/20 text-gray-700 hover:border-primary hover:text-primary")}>
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const PVOptionsWidget = ({ data, onSelect, disabled }) => {
     const list = extraerArray(data);
     return (
@@ -625,6 +656,7 @@ export default function ChatWizard() {
               <motion.div key={msg.id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
                 <div className={cn("max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-br-md" : "bg-white/70 backdrop-blur border border-white/60 text-gray-800 font-medium rounded-tl-md")}>{msg.content}</div>
                 {msg.widget?.type === 'chips' && <ChipsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
+                {msg.widget?.type === 'suggest' && <SuggestWidget data={msg.widget.data} onPick={(v) => setInputValue(v)} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pv_options' && <PVOptionsWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'pilares_grid' && <PilaresGridWidget data={msg.widget.data} onSelect={handleSelection} disabled={isWidgetFrozen} />}
                 {msg.widget?.type === 'day_picker' && <DayPickerWidget onSelect={handleSelection} disabled={isWidgetFrozen} />}
