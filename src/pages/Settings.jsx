@@ -47,7 +47,8 @@ export default function Settings() {
 
   const [estrategiaForm, setEstrategiaForm] = useState({
     propuesta_valor: '', narrativa: '', tono: '',
-    canalPrincipal: '', canalSecundario: '', frecuencia: '', diasHoras: ''
+    canalPrincipal: '', canalSecundario: '', frecuencia: '', diasHoras: '',
+    palabras_propias: '', palabras_prohibidas: ''
   });
   const [pilaresEdit, setPilaresEdit] = useState([]);
 
@@ -79,7 +80,9 @@ export default function Settings() {
         canalPrincipal: est.canalPrincipal || '',
         canalSecundario: est.canalSecundario || '',
         frecuencia: est.frecuencia || '',
-        diasHoras: est.diasHoras || ''
+        diasHoras: est.diasHoras || '',
+        palabras_propias: currentBusiness.palabras_propias || '',
+        palabras_prohibidas: currentBusiness.palabras_prohibidas || ''
       });
       setPilaresEdit(getPilaresSel(currentBusiness).map(p => ({
         tipo: p.tipo || 'educacion', nombre: p.nombre || '', desc: p.desc || p.descripcion || ''
@@ -137,7 +140,9 @@ export default function Settings() {
         propuesta_valor: estrategiaForm.propuesta_valor,
         narrativa: { narrativa: estrategiaForm.narrativa, tono: estrategiaForm.tono },
         estrategia,
-        pilares_seleccionados: pilares
+        pilares_seleccionados: pilares,
+        palabras_propias: estrategiaForm.palabras_propias,
+        palabras_prohibidas: estrategiaForm.palabras_prohibidas
       });
       await refreshBusiness();
       setSaved(true);
@@ -327,6 +332,22 @@ export default function Settings() {
                   <Input value={p.desc} onChange={e => updatePilar(i, 'desc', e.target.value)} placeholder="Descripción corta del pilar" className="h-9 text-xs" />
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <SafeIcon name="Feather" className="w-4 h-4 text-primary" />
+              <h3 className="font-heading font-bold text-lg">Voz y estilo (Agente Editor)</h3>
+            </div>
+            <p className="text-xs text-gray-500 -mt-2">Personaliza cómo suena tu contenido. La IA lo respeta al generar ideas y redactar copy.</p>
+            <div className="space-y-1.5">
+              <Label>Tu vocabulario</Label>
+              <Textarea value={estrategiaForm.palabras_propias} onChange={e => setEstrategiaForm({ ...estrategiaForm, palabras_propias: e.target.value })} className="min-h-[60px]" placeholder="Palabras, muletillas o expresiones que SÍ usas. Ej. 'parce', 'a la fija', 'te cuento'." />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Palabras prohibidas</Label>
+              <Textarea value={estrategiaForm.palabras_prohibidas} onChange={e => setEstrategiaForm({ ...estrategiaForm, palabras_prohibidas: e.target.value })} className="min-h-[60px]" placeholder="Palabras que NO quieres ver. Ej. 'increíble', 'revolucionario', 'líder', 'calidad'." />
             </div>
           </Card>
 

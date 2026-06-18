@@ -96,6 +96,8 @@ export default function ChatWizard() {
     - Observaciones reales del dueño (errores que ve en clientes, lo que explica siempre): ${biz?.insumos_reales || 'no especificado'}
     - Propuesta de valor: ${biz?.propuesta_valor || 'aún no definida'}
     - Voz de marca: ${biz?.voz_marca || 'aún no definida'}
+    - Tu vocabulario (palabras/expresiones que el dueño SÍ usa; intégralas con naturalidad): ${biz?.palabras_propias || 'no especificado'}
+    - Palabras/expresiones PROHIBIDAS (nunca las uses): ${biz?.palabras_prohibidas || 'ninguna'}
     - Canales de venta (úsalos como CTA cuando sea contenido de venta, NO inventes links): WhatsApp ${biz?.whatsapp || 'no'}, catálogo ${biz?.link_catalogo || 'no'}, link de pago ${biz?.link_pago || 'no'}, web ${biz?.link_web || 'no'}
     - Fechas especiales marcadas (tenlas MUY en cuenta para ideación y contenido): ${(biz?.eventos && biz.eventos.length) ? biz.eventos.map(ev => ev.fecha + ' ' + ev.titulo).join('; ') : 'ninguna'}
 
@@ -116,6 +118,14 @@ export default function ChatWizard() {
     SEÑALES DE CONTENIDO HUMANO (priorízalas frente a consejos genéricos): algo que sorprendió al negocio; un error que comete el cliente; una decisión difícil; algo que cambió de opinión al equipo; un detalle detrás de cámaras; una conversación real con clientes; un patrón observado muchas veces. Pregúntate "¿qué pasó realmente?" antes de "¿qué consejo de marketing puedo dar?". Si el dueño dio "Observaciones reales", úsalas como PRIMERA fuente de ideas, ejemplos y ángulos.
 
     CALIDAD: cada salida debe ser específica, relevante para el cliente ideal, accionable, basada en experiencia real, diferenciadora y difícil de copiar. Apunta a efectos como "no lo había pensado así", "cometí ese error" o "necesito hablar con esta empresa". Si algo no cumple, reemplázalo.
+
+    AGENTE EDITOR (HUMANIZA TODO TEXTO QUE PRODUZCAS):
+    - Muestra, no afirmes: en vez de decir que algo es bueno, describe el hecho concreto que lo prueba y deja que el lector lo concluya.
+    - Adjetivos vacíos PROHIBIDOS: increíble, espectacular, asombroso, fascinante, revolucionario, innovador, único, líder, mejor, premium, mágico, brutal, de otro nivel. Si la frase se sostiene al quitar el adjetivo, quítalo.
+    - Ritmo variable: alterna frases cortas y largas; nunca tres seguidas con la misma estructura o longitud.
+    - Cero relleno: nada de "en el mundo de hoy", "en la era digital", "más que nunca", "no es solo X, es Y". Ve directo.
+    - Concreto sobre abstracto: números, nombres, objetos y situaciones reales antes que conceptos.
+    - Respeta el vocabulario propio del dueño y NUNCA uses las palabras prohibidas indicadas arriba.
 
     FORMATO: Responde SIEMPRE con JSON válido y COMPLETO, según el esquema que pida la app. Nunca cortes la respuesta. No agregues texto fuera del JSON.
   `;
@@ -244,7 +254,7 @@ export default function ChatWizard() {
     }
   };
 
-  const handleSelection = async (text, value) => {
+  const handleSelection = async (text, value, fromInput = false) => {
     if (text === 'Saltar por ahora') {
       const cfgSkip = WIZARD_PHASES[currentFase];
       const nextSkip = cfgSkip?.next;
@@ -262,6 +272,39 @@ export default function ChatWizard() {
     if (text === 'Reintentar generación') {
       setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
       startPhase(currentFase);
+      return;
+    }
+
+    // Texto libre inesperado en fases guiadas: clasifica y reencamina (no guarda mal ni se traba)
+    const DESVIO = { PV_ELEGIR: 'PV_GENERAR', NARRATIVA_CONFIRMAR: 'NARRATIVA_GENERAR', ESTRATEGIA_CONFIRMAR: 'ESTRATEGIA_GENERAR', PILARES_ELEGIR: null, IDEAS_CONFIRMAR: null, DIAS_ELEGIR: null };
+    if (fromInput && !ajustePendiente && Object.prototype.hasOwnProperty.call(DESVIO, currentFase)) {
+      setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+      if (businessData?.id) await saveMessage('user', text, null, businessData.id);
+      setIsTyping(true);
+      const cfgQ = WIZARD_PHASES[currentFase]?.question || '';
+      let intent = 'pregunta', respuesta = '';
+      try {
+        const r = await generarJSON(
+          'Eres el estratega de Ideastik guiando un wizard paso a paso. Clasifica el mensaje del usuario respecto al paso actual y, si es duda o comentario, respóndela breve y útil. Responde SOLO con JSON válido.',
+          [{ role: 'user', content: `Se le mostró/preguntó: "${cfgQ}". El usuario escribió: "${text}". Devuelve {"intent":"ajustar|pregunta|continuar","respuesta":"1-2 frases si es pregunta o comentario; vacío si no"}. ajustar=quiere cambiar lo que se le mostró; continuar=está de acuerdo o quiere avanzar; pregunta=duda o comentario fuera del paso.` }],
+          300
+        );
+        if (r && typeof r === 'object') { intent = (r.intent || 'pregunta').toLowerCase(); respuesta = r.respuesta || ''; }
+      } catch (e) { /* fallback a pregunta */ }
+      setIsTyping(false);
+
+      if (intent === 'ajustar' && DESVIO[currentFase]) {
+        if (respuesta) setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: respuesta }]);
+        const faseRegen = DESVIO[currentFase];
+        setCurrentFase(faseRegen);
+        startPhase(faseRegen, businessData, text);
+        return;
+      }
+      const cierre = respuesta || (intent === 'continuar'
+        ? 'Perfecto. Elige una opción abajo para continuar.'
+        : 'Te dejo de nuevo las opciones para seguir cuando quieras.');
+      setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: cierre }]);
+      startPhase(currentFase, businessData, null, true);
       return;
     }
 
@@ -850,7 +893,7 @@ export default function ChatWizard() {
         {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white/80 via-white/40 to-transparent backdrop-blur-sm">
-        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
+        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue, undefined, true); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
           <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
           <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
         </form>
