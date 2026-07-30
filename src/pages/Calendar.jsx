@@ -11,6 +11,7 @@ import InspirationPanel from '../components/InspirationPanel';
 import WizardAgent from '../components/WizardAgent';
 import UpsellModal from '../components/UpsellModal';
 import { puedeCrearMes } from '../lib/plan';
+import { generarIdeasMes, mapIdeasToPosts } from '../lib/parrilla';
 import { motion } from 'framer-motion';
 
 export default function CalendarHub() {
@@ -27,6 +28,8 @@ export default function CalendarHub() {
   const [eventTitle, setEventTitle] = useState('');
   const [savingEvent, setSavingEvent] = useState(false);
   const [upsell, setUpsell] = useState(false);
+  const [generandoMes, setGenerandoMes] = useState(false);
+  const [errorMes, setErrorMes] = useState('');
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -89,6 +92,50 @@ export default function CalendarHub() {
   const handleCreatePostInSlot = (day) => {
     setSelectedSlot(day);
     setIsInspirationOpen(true);
+  };
+
+  // ¿El negocio ya tiene una estrategia definida? Si sí, podemos regenerar la
+  // parrilla de un mes nuevo reusando pilares/canales, sin repetir todo el wizard.
+  const tieneEstrategia = Array.isArray(currentBusiness?.pilares_seleccionados)
+    && currentBusiness.pilares_seleccionados.length > 0;
+
+  // Genera la parrilla del mes que se está viendo, con ideas frescas.
+  const handleGenerarMes = async () => {
+    if (generandoMes) return;
+    setErrorMes('');
+    // Respeta el límite del plan (FREE = 1 mes de parrilla).
+    const gridsCount = await db.countGrids(currentBusiness.id);
+    const yaExiste = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    if (!yaExiste && !puedeCrearMes(profile, gridsCount)) { setUpsell(true); return; }
+
+    setGenerandoMes(true);
+    try {
+      const mesLabel = format(currentDate, 'MMMM yyyy', { locale: es });
+      const ideasSource = await generarIdeasMes(currentBusiness, `Estas ideas son para el mes de ${mesLabel}; ténlo en cuenta si aplica alguna fecha o temporada.`);
+      if (!ideasSource || Object.keys(ideasSource).length === 0) {
+        throw new Error('La IA no devolvió ideas válidas.');
+      }
+      const grid = yaExiste || await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      // Si el mes visto es el mes actual real, arranca hoy; si es otro mes, el día 1.
+      const fechaBase = isSameMonth(currentDate, new Date()) ? new Date() : startOfMonth(currentDate);
+      const posts = mapIdeasToPosts(ideasSource, currentBusiness, grid.id, fechaBase);
+      await db.createPosts(posts);
+      try {
+        await db.createNotification({
+          user_id: currentBusiness.user_id,
+          business_id: currentBusiness.id,
+          title: '¡Parrilla del mes lista! 🎉',
+          message: `Creamos ${posts.length} publicaciones para ${mesLabel}.`,
+          type: 'INFO'
+        });
+      } catch (e) { /* la notificación es best-effort */ }
+      await loadPosts();
+    } catch (e) {
+      console.error('No se pudo generar la parrilla del mes:', e);
+      setErrorMes('No pudimos generar la parrilla. Inténtalo de nuevo.');
+    } finally {
+      setGenerandoMes(false);
+    }
   };
 
   const handleIdeaSelected = async (idea) => {
@@ -234,18 +281,42 @@ export default function CalendarHub() {
     );
   };
 
-  const EmptyState = () => (
-    <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
-      <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
-        <SafeIcon name="Calendar" className="w-10 h-10 opacity-50" />
-      </div>
-      <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Aún no tienes tu parrilla del mes</h3>
-      <p className="text-gray-500 max-w-sm mb-8">Trabajemos juntos para diseñar una estrategia de contenidos que conecte con tu audiencia y venda más.</p>
-      <Button size="lg" onClick={() => navigate(`/n/${currentBusiness.id}/estrategia`)} className="px-8 shadow-xl shadow-primary/20">
-        <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Comenzar Estrategia
-      </Button>
-    </Card>
-  );
+  const EmptyState = () => {
+    const mesLabel = format(currentDate, 'MMMM', { locale: es });
+    // Con estrategia ya definida: ofrecer generar la parrilla de ESTE mes con
+    // ideas frescas (no mandar al wizard, que ya está completado).
+    if (tieneEstrategia) {
+      return (
+        <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
+          <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
+            <SafeIcon name="Sparkles" className="w-10 h-10 opacity-50" />
+          </div>
+          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2 capitalize">Tu parrilla de {mesLabel} está vacía</h3>
+          <p className="text-gray-500 max-w-sm mb-2">Ya tienes tu estrategia lista. Genero un nuevo mes de ideas basadas en tus pilares y canales, sin repetir el cuestionario.</p>
+          {errorMes && <p className="text-sm text-red-500 mb-3">{errorMes}</p>}
+          <Button size="lg" onClick={handleGenerarMes} isLoading={generandoMes} className="px-8 shadow-xl shadow-primary/20 mt-4">
+            <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> {generandoMes ? 'Generando ideas...' : `Generar parrilla de ${mesLabel}`}
+          </Button>
+          <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-xs text-gray-400 hover:text-primary mt-4 flex items-center gap-1">
+            <SafeIcon name="Sliders" className="w-3 h-3" /> Revisar o ajustar mi estrategia antes
+          </button>
+        </Card>
+      );
+    }
+    // Sin estrategia todavía: llevar al wizard a construirla.
+    return (
+      <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
+        <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
+          <SafeIcon name="Calendar" className="w-10 h-10 opacity-50" />
+        </div>
+        <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Aún no tienes tu parrilla del mes</h3>
+        <p className="text-gray-500 max-w-sm mb-8">Trabajemos juntos para diseñar una estrategia de contenidos que conecte con tu audiencia y venda más.</p>
+        <Button size="lg" onClick={() => navigate(`/n/${currentBusiness.id}/estrategia`)} className="px-8 shadow-xl shadow-primary/20">
+          <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Comenzar Estrategia
+        </Button>
+      </Card>
+    );
+  };
 
   return (
     // pb-32 en móvil deja aire para la barra inferior y el botón de chat

@@ -20,8 +20,10 @@ export const WIZARD_PHASES = {
     field: 'que_hace'
   },
   DATOS_QUE_DIFERENTE: {
+    // El sector se captura en el formulario de arranque (Onboarding), así que
+    // tras el diferencial pasamos directo al cliente ideal (saltamos DATOS_SECTOR).
     question: "Interesante... ¿Qué te hace realmente diferente a tu competencia? Elige una idea para empezar o escríbela a tu manera.",
-    next: 'DATOS_SECTOR',
+    next: 'DATOS_CLIENTE',
     field: 'diferente',
     widget: 'multi',
     options: ['Atención personalizada', 'Calidad y proceso cuidado', 'Conocimiento experto', 'Rapidez y cumplimiento', 'Experiencia única', 'Hecho a mano / artesanal']
