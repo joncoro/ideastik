@@ -66,6 +66,17 @@ const extraerNarrativa = (data) => {
   return '';
 };
 
+/**
+ * Orden de las fases, para calcular cuánto falta. Object.keys respeta el orden
+ * de declaración en wizardMachine, que es el orden real del recorrido.
+ */
+const FASES_ORDEN = Object.keys(WIZARD_PHASES);
+const progresoDe = (fase) => {
+  const i = FASES_ORDEN.indexOf(fase);
+  if (i < 0) return 0;
+  return Math.round(((i + 1) / FASES_ORDEN.length) * 100);
+};
+
 export default function ChatWizard() {
   const { bizId } = useParams();
   const navigate = useNavigate();
@@ -853,6 +864,37 @@ export default function ChatWizard() {
     );
   };
 
+  // Estados de carga y error: antes se calculaban pero nunca se pintaban, así que
+  // un fallo al cargar el negocio dejaba un chat vacío y sin salida.
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center gap-3">
+        <Spinner />
+        <p className="text-xs text-gray-400">Cargando tu estrategia...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center p-6">
+        <Card className="p-8 max-w-md text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto">
+            <SafeIcon name="AlertTriangle" className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-lg text-gray-900 mb-1">No pudimos abrir esta estrategia</h2>
+            <p className="text-sm text-gray-500">{error}</p>
+          </div>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" onClick={() => window.location.reload()}>Reintentar</Button>
+            <Button onClick={() => navigate('/negocios')}>Ir a mis negocios</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* PANEL VISUAL — solo escritorio */}
@@ -862,11 +904,29 @@ export default function ChatWizard() {
 
       {/* COLUMNA DE CONVERSACIÓN */}
       <div className="flex flex-col h-full flex-1 relative max-w-2xl mx-auto w-full">
-      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center gap-3 shrink-0 z-10">
-        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary"><SafeIcon name="Zap" className="w-5 h-5" /></div>
-        <div>
-          <h2 className="font-heading font-bold text-gray-900 leading-none">Estratega Ideastik</h2>
-          <span className="text-[11px] text-success font-medium">● En línea</span>
+      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 shrink-0 z-10">
+        <div className="px-4 md:px-6 py-4 flex items-center gap-3">
+          {/* Salida del wizard: el shell (sidebar/nav) está oculto en esta ruta,
+              así que sin este botón el usuario queda encerrado en la pantalla. */}
+          <button
+            onClick={() => navigate('/negocios')}
+            title="Salir (tu avance queda guardado)"
+            className="w-9 h-9 rounded-xl border border-white/70 bg-white/60 hover:bg-white text-gray-500 hover:text-gray-900 flex items-center justify-center transition-colors shrink-0"
+          >
+            <SafeIcon name="ArrowLeft" className="w-4 h-4" />
+          </button>
+          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0"><SafeIcon name="Zap" className="w-5 h-5" /></div>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-heading font-bold text-gray-900 leading-none truncate">Estratega Ideastik</h2>
+            <span className="text-[11px] text-success font-medium">● En línea</span>
+          </div>
+          <span className="text-[11px] text-gray-400 font-medium shrink-0 hidden sm:block">
+            Paso {Math.max(1, FASES_ORDEN.indexOf(currentFase) + 1)} de {FASES_ORDEN.length}
+          </span>
+        </div>
+        {/* Progreso: el recorrido son 15+ pasos y no había forma de saber cuánto falta. */}
+        <div className="h-1 w-full bg-gray-100">
+          <div className="h-full bg-gradient-to-r from-primary to-[#8B5CF6] transition-all duration-500" style={{ width: `${progresoDe(currentFase)}%` }} />
         </div>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 md:px-8 py-6 space-y-6 pb-28">
