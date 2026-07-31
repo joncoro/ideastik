@@ -99,19 +99,35 @@ Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo
     await db.updatePost(postId, { copy: texto, status: 'READY' });
   };
 
-  // Toma la historia REAL que escribe el dueño y la mejora para publicar, sin
-  // inventar ni agregar hechos. Solo ordena, da ritmo y añade gancho y CTA.
+  // Detecta negocios técnicos / B2B / software, donde el material real no son
+  // anécdotas emotivas sino decisiones, criterios, datos y casos de uso.
+  const esTecnicoOB2B = (() => {
+    const b = currentBusiness || {};
+    const txt = `${b.sector || ''} ${b.que_hace || ''} ${b.cliente_ideal || ''}`.toLowerCase();
+    return /tecnolog|software|saas|app|plataforma|b2b|consultor|profesional|industri|inmobili|ingenier|legal|contab|financ|agencia|logístic|logistic/.test(txt);
+  })();
+
+  const historiaPlaceholder = esTecnicoOB2B
+    ? 'Ej. Una decisión técnica que tomamos para resolver X, un error común que cometen los clientes, o un caso real que resolvimos...'
+    : 'Ej. Hoy una clienta volvió por su tercer par y me contó que...';
+
+  // Toma el material REAL que escribe el dueño (anécdota, decisión, caso o dato)
+  // y lo mejora para publicar, sin inventar ni agregar hechos.
   const handleMejorarHistoria = async () => {
     if (!historia.trim() || mejorando) return;
     setMejorando(true);
     try {
       const b = currentBusiness || {};
-      const system = `Eres el redactor de Ideastik para "${b.nombre || 'este negocio'}". Recibes una historia o anécdota REAL contada por el dueño y la conviertes en una publicación lista para ${post.canal || 'Instagram'}.
-REGLA CRÍTICA: NO inventes ni agregues hechos, nombres, fechas, cifras ni detalles que el dueño no haya dicho. No exageres ni adornes con datos falsos. Solo puedes reordenar, dar ritmo, mejorar la redacción y hacerla más clara y humana, respetando fielmente lo que ocurrió. Si algo no queda claro, déjalo general en vez de inventarlo.
+      const tipoMaterial = esTecnicoOB2B
+        ? 'un hecho real de su negocio (una decisión técnica, un criterio de experto, un error frecuente del cliente, un caso de uso, un aprendizaje o un dato)'
+        : 'una historia o anécdota real de su negocio';
+      const system = `Eres el redactor de Ideastik para "${b.nombre || 'este negocio'}" (sector ${b.sector || 'general'}). Recibes ${tipoMaterial} contado por el dueño y lo conviertes en una publicación lista para ${post.canal || 'Instagram'}.
+REGLA CRÍTICA: NO inventes ni agregues hechos, nombres, fechas, cifras ni detalles que el dueño no haya dicho. No exageres ni adornes con datos falsos. Solo puedes reordenar, dar ritmo, mejorar la redacción y hacerla más clara y útil, respetando fielmente lo que dijo. Si algo no queda claro, déjalo general en vez de inventarlo.
+${esTecnicoOB2B ? 'Tono: profesional, claro y con autoridad; prioriza la utilidad y el criterio sobre la emoción. Nada de anécdotas emotivas forzadas.' : 'Tono: cercano y humano.'}
 Voz del dueño: integra su vocabulario (${b.palabras_propias || 'sin indicaciones'}) y nunca uses estas palabras prohibidas: ${b.palabras_prohibidas || 'ninguna'}. Prohibidos los adjetivos vacíos y el relleno.`;
-      const userMsg = `Historia real del dueño (respétala, no inventes nada):
+      const userMsg = `Material real del dueño (respétalo, no inventes nada):
 """${historia.trim()}"""
-Conviértela en un post: empieza con un gancho fiel a la historia, desarróllala en 2 a 4 frases con saltos de línea y cierra con una invitación a la acción suave. Máximo 3 hashtags. Devuelve SOLO el texto del post.`;
+Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo en 2 a 4 frases con saltos de línea y cierra con una invitación a la acción suave. Máximo 3 hashtags. Devuelve SOLO el texto del post.`;
       const texto = await generarTexto(system, [{ role: 'user', content: userMsg }], 700);
       if (texto) {
         setCopy(texto);
@@ -243,15 +259,20 @@ Conviértela en un post: empieza con un gancho fiel a la historia, desarróllala
             <Card className="p-4 space-y-2.5 border-success/20 bg-success/[0.03]">
               <div>
                 <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                  <SafeIcon name="Heart" className="w-3.5 h-3.5 text-success" /> ¿Tienes una historia real? Cuéntala y la pulo
+                  <SafeIcon name={esTecnicoOB2B ? 'Award' : 'Heart'} className="w-3.5 h-3.5 text-success" />
+                  {esTecnicoOB2B ? '¿Tienes algo real que contar? Cuéntamelo y lo pulo' : '¿Tienes una historia real? Cuéntala y la pulo'}
                 </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">Escríbela como salga, con tus palabras. La mejoro sin inventar nada: lo que no me cuentes, no lo agrego.</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {esTecnicoOB2B
+                    ? 'Una decisión, un criterio, un caso o un dato de tu negocio. Lo mejoro sin inventar: lo que no me cuentes, no lo agrego.'
+                    : 'Escríbela como salga, con tus palabras. La mejoro sin inventar nada: lo que no me cuentes, no lo agrego.'}
+                </p>
               </div>
               <Textarea
                 value={historia}
                 onChange={e => setHistoria(e.target.value)}
                 className="min-h-[90px] text-sm bg-white"
-                placeholder="Ej. Hoy una clienta volvió por su tercer par; me contó que..."
+                placeholder={historiaPlaceholder}
               />
               <Button size="sm" variant="success" className="w-full" onClick={handleMejorarHistoria} isLoading={mejorando} disabled={!historia.trim()}>
                 <SafeIcon name="Feather" className="w-3.5 h-3.5 mr-1.5" /> Convertir mi historia en post
