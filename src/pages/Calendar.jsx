@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { useNavigate, useParams } from 'react-router-dom';
-import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday, addMonths, subMonths } from 'date-fns';
+import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday, addMonths, subMonths, eachDayOfInterval, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button, Skeleton, Card } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
@@ -135,6 +135,43 @@ export default function CalendarHub() {
       setErrorMes('No pudimos generar la parrilla. Inténtalo de nuevo.');
     } finally {
       setGenerandoMes(false);
+    }
+  };
+
+  // Días del mes visto que aún no tienen contenido (para que el agente sugiera
+  // dónde colocar una idea). En el mes actual no ofrece días ya pasados.
+  const diasLibres = (() => {
+    const hoy = startOfDay(new Date());
+    const enMesActual = isSameMonth(currentDate, new Date());
+    return eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) })
+      .filter(d => (!enMesActual || !isBefore(d, hoy)) && !posts.some(p => isSameDay(new Date(p.fecha), d)));
+  })();
+
+  // El agente flotante coloca una idea en el día elegido. Devuelve true si se creó.
+  const handleAddIdeaFromAgent = async (idea, iso) => {
+    try {
+      let grid = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      if (!grid) {
+        const gridsCount = await db.countGrids(currentBusiness.id);
+        if (!puedeCrearMes(profile, gridsCount)) { setUpsell(true); return false; }
+        grid = await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      }
+      const fecha = iso || (diasLibres[0] || currentDate).toISOString();
+      await db.createPosts([{
+        grid_id: grid.id,
+        fecha,
+        pilar: idea.pilar || idea.pilarName || 'General',
+        pilar_tipo: idea.pilar_tipo || idea.pilarTipo || 'educacion',
+        formato: idea.formato || 'Reel',
+        canal: est.canalPrincipal || 'Instagram',
+        gancho: idea.gancho,
+        hora: '19:00'
+      }]);
+      await loadPosts();
+      return true;
+    } catch (e) {
+      console.error('No se pudo añadir la idea:', e);
+      return false;
     }
   };
 
@@ -420,7 +457,7 @@ export default function CalendarHub() {
         mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
       />
       <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
-      <WizardAgent context="calendar" />
+      <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} />
     </div>
   );
 }
