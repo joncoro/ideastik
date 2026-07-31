@@ -96,6 +96,31 @@ export const db = {
     return data;
   },
 
+  // Marca (o desmarca) una publicación como ya publicada. Es el gesto de hábito
+  // que alimenta el contador/racha del calendario.
+  async marcarPublicado(id, publicado = true) {
+    return this.updatePost(id, { status: publicado ? 'PUBLISHED' : 'READY' });
+  },
+
+  // Fecha + estado de TODAS las publicaciones del negocio (a través de sus
+  // parrillas), para calcular el contador y la racha mes a mes. Ligero: solo
+  // trae dos columnas.
+  async getPublicacionesStats(businessId) {
+    const { data: grids, error: ge } = await supabase
+      .from('grids')
+      .select('id')
+      .eq('business_id', businessId);
+    if (ge) throw ge;
+    const ids = (grids || []).map(g => g.id);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from('posts')
+      .select('fecha, status')
+      .in('grid_id', ids);
+    if (error) throw error;
+    return data || [];
+  },
+
   async updatePost(id, updates) {
     const { data, error } = await supabase
       .from('posts')

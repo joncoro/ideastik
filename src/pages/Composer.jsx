@@ -29,6 +29,21 @@ export default function Composer() {
   // Banco de material real del negocio (memoria); se inyecta a la IA.
   const [historiasBank, setHistoriasBank] = useState([]);
   const [historiaGuardada, setHistoriaGuardada] = useState(false);
+  const [marcando, setMarcando] = useState(false);
+
+  const publicado = post?.status === 'PUBLISHED';
+  const handleTogglePublicado = async () => {
+    if (!post || marcando) return;
+    setMarcando(true);
+    try {
+      await db.marcarPublicado(post.id, !publicado);
+      setPost(p => ({ ...p, status: publicado ? 'READY' : 'PUBLISHED' }));
+    } catch (e) {
+      console.error('No se pudo actualizar el estado de publicación:', e);
+    } finally {
+      setMarcando(false);
+    }
+  };
 
   useEffect(() => {
     loadPost();
@@ -208,7 +223,19 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
             <Badge variant="primary" className="text-[10px] uppercase">{post.pilar}</Badge>
           </div>
         </div>
-        <Button size="sm" onClick={() => navigate(-1)}>Guardar y Salir</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={publicado ? 'success' : 'outline'}
+            onClick={handleTogglePublicado}
+            isLoading={marcando}
+            title={publicado ? 'Marcado como publicado. Toca para deshacer.' : 'Márcalo cuando ya lo hayas subido a tus redes.'}
+          >
+            <SafeIcon name={publicado ? 'CheckCircle' : 'Circle'} className="w-4 h-4 mr-1.5" />
+            {publicado ? 'Publicado' : 'Ya lo publiqué'}
+          </Button>
+          <Button size="sm" onClick={() => navigate(-1)}>Guardar y Salir</Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-8">

@@ -31,6 +31,7 @@ export default function CalendarHub() {
   const [generandoMes, setGenerandoMes] = useState(false);
   const [errorMes, setErrorMes] = useState('');
   const [historiasBank, setHistoriasBank] = useState([]);
+  const [pubStats, setPubStats] = useState([]);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -92,7 +93,29 @@ export default function CalendarHub() {
     } finally {
       setLoading(false);
     }
+    // Contador/racha: publicaciones marcadas como publicadas, mes a mes.
+    db.getPublicacionesStats(currentBusiness.id).then(setPubStats).catch(() => {});
   };
+
+  // Resumen de publicaciones (para el widget de racha). Cuenta solo las marcadas
+  // como PUBLISHED, agrupadas por mes de su fecha.
+  const resumenPub = (() => {
+    const pub = (pubStats || []).filter(p => p.status === 'PUBLISHED');
+    const byMonth = {};
+    pub.forEach(p => { const k = format(new Date(p.fecha), 'yyyy-MM'); byMonth[k] = (byMonth[k] || 0) + 1; });
+    const kVisto = format(currentDate, 'yyyy-MM');
+    const kPasado = format(subMonths(currentDate, 1), 'yyyy-MM');
+    // Racha: meses consecutivos con al menos una publicada, terminando en el mes
+    // real actual; si este aún no tiene, arranca en el más reciente con actividad.
+    let racha = 0;
+    let cursor = new Date();
+    if (!byMonth[format(cursor, 'yyyy-MM')]) {
+      const keys = Object.keys(byMonth).sort();
+      cursor = keys.length ? new Date(keys[keys.length - 1] + '-01T12:00:00') : null;
+    }
+    while (cursor && byMonth[format(cursor, 'yyyy-MM')]) { racha++; cursor = subMonths(cursor, 1); }
+    return { mesVisto: byMonth[kVisto] || 0, mesPasado: byMonth[kPasado] || 0, total: pub.length, racha };
+  })();
 
   const handleCreatePostInSlot = (day) => {
     setSelectedSlot(day);
@@ -252,8 +275,11 @@ export default function CalendarHub() {
                 </div>
               ))}
               {dayPosts.map(post => (
-                <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm bg-white hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo))}>
-                  <p className="font-medium text-gray-800 line-clamp-2 leading-tight">{post.gancho}</p>
+                <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
+                  <p className="font-medium text-gray-800 line-clamp-2 leading-tight flex items-start gap-1">
+                    {post.status === 'PUBLISHED' && <SafeIcon name="CheckCircle" className="w-3 h-3 text-success shrink-0 mt-0.5" />}
+                    <span>{post.gancho}</span>
+                  </p>
                   <div className="flex flex-wrap items-center gap-1 mt-1 text-[9px] text-gray-400">
                     {post.formato && <span>{post.formato}</span>}
                     {post.canal && <span>· {post.canal}</span>}
@@ -305,12 +331,13 @@ export default function CalendarHub() {
                 ))}
                 {byDay[key].map(post => (
                   <div key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)}
-                    className={cn("p-3 rounded-xl cursor-pointer border-l-4 bg-white shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo))}>
+                    className={cn("p-3 rounded-xl cursor-pointer border-l-4 shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full", pilarChip(post.pilar_tipo))}>{post.pilar}</span>
                       {post.formato && <span className="text-[10px] text-gray-400">· {post.formato}</span>}
                       {post.canal && <span className="text-[10px] text-gray-400">· {post.canal}</span>}
                       {post.hora && <span className="text-[10px] text-gray-400">· {post.hora}</span>}
+                      {post.status === 'PUBLISHED' && <span className="text-[10px] text-success font-bold flex items-center gap-0.5 ml-auto"><SafeIcon name="CheckCircle" className="w-3 h-3" /> Publicado</span>}
                     </div>
                     <p className="text-sm font-medium text-gray-800 leading-snug">{post.gancho}</p>
                   </div>
@@ -379,6 +406,41 @@ export default function CalendarHub() {
           </div>
         </Card>
       )}
+      {/* Racha / contador de publicaciones: refuerza el hábito con un número
+          grande y una frase de aliento (no una gráfica corporativa). */}
+      {(posts.length > 0 || resumenPub.total > 0) && (
+        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-alert/5 to-primary/5 border-alert/15">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-alert/10 flex items-center justify-center text-alert shrink-0">
+                <SafeIcon name="Zap" className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-3xl font-heading font-bold text-gray-900 leading-none">
+                  {resumenPub.mesVisto}
+                  <span className="text-sm font-medium text-gray-400"> publicad{resumenPub.mesVisto === 1 ? 'a' : 'as'}</span>
+                </p>
+                <p className="text-xs text-gray-500 capitalize mt-0.5">en {format(currentDate, 'MMMM', { locale: es })}</p>
+              </div>
+            </div>
+
+            {resumenPub.racha >= 2 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 border border-alert/20 text-sm font-bold text-alert">
+                🔥 {resumenPub.racha} meses seguidos
+              </div>
+            )}
+
+            <p className="text-sm text-gray-600 flex-1 min-w-[180px] leading-snug">
+              {resumenPub.mesVisto === 0
+                ? 'Cuando subas un post a tus redes, ábrelo y toca “Ya lo publiqué”. Así llevas la cuenta y no pierdes el ritmo.'
+                : resumenPub.mesVisto > resumenPub.mesPasado
+                  ? `¡Vas mejor que el mes pasado (${resumenPub.mesPasado})! La constancia es lo que mueve el algoritmo. 💪`
+                  : `Llevas ${resumenPub.total} publicad${resumenPub.total === 1 ? 'a' : 'as'} en total. Sigue así, la constancia le gana a la intensidad.`}
+            </p>
+          </div>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div className="flex items-center gap-1.5 md:gap-3">
           {/* Navegación de meses: permite planear meses siguientes (Mensual). */}
