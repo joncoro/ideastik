@@ -30,6 +30,7 @@ export default function CalendarHub() {
   const [upsell, setUpsell] = useState(false);
   const [generandoMes, setGenerandoMes] = useState(false);
   const [errorMes, setErrorMes] = useState('');
+  const [historiasBank, setHistoriasBank] = useState([]);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -71,6 +72,10 @@ export default function CalendarHub() {
     if (currentBusiness) loadPosts();
   }, [currentBusiness, currentDate]);
 
+  useEffect(() => {
+    if (currentBusiness?.id) db.getHistorias(currentBusiness.id).then(setHistoriasBank).catch(() => {});
+  }, [currentBusiness?.id]);
+
   const loadPosts = async () => {
     setLoading(true);
     try {
@@ -111,7 +116,7 @@ export default function CalendarHub() {
     setGenerandoMes(true);
     try {
       const mesLabel = format(currentDate, 'MMMM yyyy', { locale: es });
-      const ideasSource = await generarIdeasMes(currentBusiness, `Estas ideas son para el mes de ${mesLabel}; ténlo en cuenta si aplica alguna fecha o temporada.`);
+      const ideasSource = await generarIdeasMes({ ...currentBusiness, historias: historiasBank }, `Estas ideas son para el mes de ${mesLabel}; ténlo en cuenta si aplica alguna fecha o temporada.`);
       if (!ideasSource || Object.keys(ideasSource).length === 0) {
         throw new Error('La IA no devolvió ideas válidas.');
       }
@@ -457,7 +462,7 @@ export default function CalendarHub() {
         mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
       />
       <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
-      <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} />
+      <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} historias={historiasBank} />
     </div>
   );
 }

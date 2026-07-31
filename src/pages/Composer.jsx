@@ -26,10 +26,22 @@ export default function Composer() {
   // Historia real del dueño → la IA la pule sin inventar.
   const [historia, setHistoria] = useState('');
   const [mejorando, setMejorando] = useState(false);
+  // Banco de material real del negocio (memoria); se inyecta a la IA.
+  const [historiasBank, setHistoriasBank] = useState([]);
+  const [historiaGuardada, setHistoriaGuardada] = useState(false);
 
   useEffect(() => {
     loadPost();
   }, [postId]);
+
+  useEffect(() => {
+    if (currentBusiness?.id) {
+      db.getHistorias(currentBusiness.id).then(setHistoriasBank).catch(() => {});
+    }
+  }, [currentBusiness?.id]);
+
+  // Negocio enriquecido con su banco de historias, para que la IA lo use.
+  const bizConMemoria = () => ({ ...(currentBusiness || {}), historias: historiasBank });
 
   const loadPost = async () => {
     setLoading(true);
@@ -52,7 +64,8 @@ Reglas innegociables: nunca uses el precio como diferenciador; nunca la fórmula
 NO inventes anécdotas, historias, personas, nombres ni hechos específicos que no se hayan dado. Si el post necesita una historia real y no la tienes, deja un marcador entre corchetes para que el dueño lo complete (ej. "[cuenta aquí tu caso real]") en vez de fabricarla.
 Canales de venta para el CTA (usa el que aplique, NO inventes links): WhatsApp ${b.whatsapp || 'no disponible'}, catálogo ${b.link_catalogo || 'no disponible'}, link de pago ${b.link_pago || 'no disponible'}, web ${b.link_web || 'no disponible'}.
 Voz del dueño: integra su vocabulario propio (${b.palabras_propias || 'sin indicaciones'}) y NUNCA uses estas palabras prohibidas: ${b.palabras_prohibidas || 'ninguna'}.
-Edición (humaniza): muestra en vez de afirmar; prohibidos los adjetivos vacíos (increíble, espectacular, único, innovador, revolucionario, líder, premium, brutal); ritmo variable (alterna frases cortas y largas); cero relleno ("en la era digital", "más que nunca", "no es solo X, es Y"); concreto sobre abstracto.`;
+Edición (humaniza): muestra en vez de afirmar; prohibidos los adjetivos vacíos (increíble, espectacular, único, innovador, revolucionario, líder, premium, brutal); ritmo variable (alterna frases cortas y largas); cero relleno ("en la era digital", "más que nunca", "no es solo X, es Y"); concreto sobre abstracto.
+${historiasBank.length ? `Material real aportado por el dueño (úsalo como PRIMERA fuente, no inventes por encima): ${historiasBank.map(h => `• ${h.texto}`).join(' ')}` : ''}`;
       const userMsg = `Escribe el copy para esta publicación:
 - Pilar: ${post.pilar || 'general'}${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}
 - Formato: ${post.formato || 'Reel'}
@@ -78,7 +91,7 @@ Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, s
     setGeneratingIdeas(true);
     try {
       const formato = post.formato || 'Reel';
-      const system = buildSystemPrompt(currentBusiness || {});
+      const system = buildSystemPrompt(bizConMemoria());
       const userMsg = `Publicación del pilar "${post.pilar || 'general'}"${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}, formato ${formato}, canal ${post.canal || 'Instagram'}, gancho base "${post.gancho || ''}".
 1) GUION de producción concreto para grabar/armar esta pieza: si es Reel o Historia, 3 a 5 pasos de "qué grabar" con el texto en pantalla sugerido; si es Carrusel, el título de 4 a 6 láminas; si es post de imagen, 3 ideas visuales. Cada paso en una frase corta y accionable.
 2) Tres VARIANTES de copy con enfoques DISTINTOS (por ejemplo: historia real, dato útil, venta directa). Cada variante lista para publicar: gancho + 2 a 4 frases con saltos de línea + un CTA suave + máximo 3 hashtags.
@@ -132,6 +145,14 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
       if (texto) {
         setCopy(texto);
         await db.updatePost(postId, { copy: texto, status: 'READY' });
+        // Guardar el material real en el banco de memoria de la marca.
+        try {
+          const nueva = await db.createHistoria(currentBusiness.id, historia.trim(), 'editor', esTecnicoOB2B ? 'insight' : 'anecdota');
+          setHistoriasBank(prev => [nueva, ...prev]);
+          setHistoria('');
+          setHistoriaGuardada(true);
+          setTimeout(() => setHistoriaGuardada(false), 4000);
+        } catch (e) { console.error('No se pudo guardar en el banco:', e); }
       }
     } catch (e) {
       console.error('Error mejorando historia:', e);
@@ -275,8 +296,18 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
                 placeholder={historiaPlaceholder}
               />
               <Button size="sm" variant="success" className="w-full" onClick={handleMejorarHistoria} isLoading={mejorando} disabled={!historia.trim()}>
-                <SafeIcon name="Feather" className="w-3.5 h-3.5 mr-1.5" /> Convertir mi historia en post
+                <SafeIcon name="Feather" className="w-3.5 h-3.5 mr-1.5" /> Convertir en post
               </Button>
+              {historiaGuardada && (
+                <p className="text-[11px] text-success font-medium flex items-center gap-1">
+                  <SafeIcon name="Check" className="w-3 h-3" /> Guardado en la memoria de tu marca. La IA lo usará en próximas ideas.
+                </p>
+              )}
+              {historiasBank.length > 0 && !historiaGuardada && (
+                <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                  <SafeIcon name="Archive" className="w-3 h-3" /> Tu marca ya tiene {historiasBank.length} recuerdo(s) que la IA usa al generar.
+                </p>
+              )}
             </Card>
 
             <Card className="p-0 overflow-hidden border-primary/10 shadow-sm">

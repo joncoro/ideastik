@@ -17,7 +17,7 @@ import { es } from 'date-fns/locale';
  * Lee el contexto real del negocio (pilares, propuesta, cliente) y, en el
  * calendario, los días que aún están sin contenido.
  */
-export default function WizardAgent({ context, data, onApplySuggestion, diasLibres = [], onAddIdea }) {
+export default function WizardAgent({ context, data, onApplySuggestion, diasLibres = [], onAddIdea, historias = [] }) {
   const { currentBusiness } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -36,6 +36,7 @@ export default function WizardAgent({ context, data, onApplySuggestion, diasLibr
       ? b.pilares_seleccionados.map(p => `${p.nombre} (${p.tipo})`).join(', ') : '';
     return `Eres el Agente Ideastik, estratega de contenido del negocio "${b.nombre || 'este negocio'}" (${b.sector || 'general'}).
 Contexto real: vende ${b.que_hace || 'no especificado'}; su diferencial es ${b.diferente || 'no especificado'}; su cliente ideal es ${b.cliente_ideal || 'no especificado'}; propuesta de valor: ${b.propuesta_valor || 'no definida'}. Pilares de contenido: ${pilares || 'aún sin definir'}.
+${historias.length ? `Material real que el dueño ya aportó (úsalo como PRIMERA fuente y NUNCA inventes por encima): ${historias.map(h => `• ${typeof h === 'string' ? h : h.texto}`).join(' ')}` : 'Aún no hay material real aportado: si hace falta una historia, invítalo a contarla en vez de inventar.'}
 ${context === 'calendar'
   ? `El usuario está en su calendario${diasLibres.length ? `, con ${diasLibres.length} día(s) aún sin contenido este mes` : ''}. Ayúdale a idear contenido concreto y accionable para su cliente ideal, apegado a sus pilares. Si te pide ideas, dáselas breves y específicas.`
   : `El usuario está editando un post. Ayúdale a mejorar copy, ganchos o CTA. Si propones un copy final, enciérralo entre [COPY] y [/COPY].`}
@@ -89,7 +90,7 @@ Habla claro y sencillo: el usuario suele ser un microempresario sin tiempo y sin
       const pilares = Array.isArray(b.pilares_seleccionados) ? b.pilares_seleccionados : [];
       const nombres = pilares.map(p => `${p.nombre} (${p.tipo})`).join('; ');
       const userMsg = `Propon 4 ideas de post concretas y variadas para este negocio, cada una atada a uno de sus pilares${nombres ? ` (${nombres})` : ''} y a su cliente ideal. Deben provocar el efecto "no se me había ocurrido". Cada 'gancho' y 'desc' en máximo 14 palabras. Responde SOLO con JSON válido: {"ideas":[{"gancho":"string","desc":"string","pilar":"nombre del pilar","pilar_tipo":"autoridad|conexion|venta|educacion|prueba_social","formato":"Reel|Carrusel|Historia"}]}`;
-      const r = await generarJSON(buildSystemPrompt(b), [{ role: 'user', content: userMsg }], 1400);
+      const r = await generarJSON(buildSystemPrompt({ ...b, historias }), [{ role: 'user', content: userMsg }], 1400);
       const arr = Array.isArray(r?.ideas) ? r.ideas : (Array.isArray(r) ? r : []);
       setIdeas(arr.filter(x => x && x.gancho));
       setAddedIdx({});

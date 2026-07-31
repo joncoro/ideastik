@@ -46,6 +46,7 @@ export const buildSystemPrompt = (biz) => `
     - Palabras/expresiones PROHIBIDAS (nunca las uses): ${biz?.palabras_prohibidas || 'ninguna'}
     - Canales de venta (úsalos como CTA cuando sea contenido de venta, NO inventes links): WhatsApp ${biz?.whatsapp || 'no'}, catálogo ${biz?.link_catalogo || 'no'}, link de pago ${biz?.link_pago || 'no'}, web ${biz?.link_web || 'no'}
     - Fechas especiales marcadas (tenlas MUY en cuenta para ideación y contenido): ${(biz?.eventos && biz.eventos.length) ? biz.eventos.map(ev => ev.fecha + ' ' + ev.titulo).join('; ') : 'ninguna'}
+    - MATERIAL REAL APORTADO POR EL DUEÑO (historias, decisiones, casos y datos verdaderos; úsalo como PRIMERA fuente de ideas, ejemplos y ángulos; NUNCA lo contradigas ni inventes por encima de esto): ${(Array.isArray(biz?.historias) && biz.historias.length) ? biz.historias.map(h => `• ${typeof h === 'string' ? h : h.texto}`).join('\n    ') : 'aún no hay; no inventes, invita a aportarlo cuando haga falta'}
 
     VOZ DE MARCA (OBLIGATORIA): tiene prioridad sobre cualquier fórmula de marketing o estilo de escritura. Si hay conflicto entre una práctica de copywriting y la voz del dueño, prevalece la voz del dueño. Nunca neutralices, estandarices ni corporativices la voz proporcionada.
 
