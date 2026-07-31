@@ -23,6 +23,9 @@ export default function Composer() {
   // Ideas estructuradas: guion de producción + variantes de copy para elegir.
   const [ideas, setIdeas] = useState(null);
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
+  // Historia real del dueño → la IA la pule sin inventar.
+  const [historia, setHistoria] = useState('');
+  const [mejorando, setMejorando] = useState(false);
 
   useEffect(() => {
     loadPost();
@@ -46,6 +49,7 @@ export default function Composer() {
       const system = `Eres el redactor de contenido de Ideastik para el negocio "${b.nombre || 'este negocio'}". Escribes copy en español, listo para publicar en redes sociales.
 Contexto del negocio: vende ${b.que_hace || 'su producto o servicio'}; su diferencial real es ${b.diferente || 'su forma de trabajar'}; sector ${b.sector || 'general'}; cliente ideal ${b.cliente_ideal || 'su audiencia'}.${b.propuesta_valor ? ` Propuesta de valor: ${b.propuesta_valor}.` : ''}${(() => { const n = b.narrativa; const t = typeof n === 'string' ? n : (n?.narrativa || ''); return t ? ` Narrativa de marca (mantén su espíritu): ${t}.` : ''; })()}
 Reglas innegociables: nunca uses el precio como diferenciador; nunca la fórmula "no vendemos X, vendemos Y"; el diferencial vive en la percepción (criterio, asesoría, personalización, conocimiento, sistema, cumplimiento). Háblale directo al cliente ideal y sé específico a ESTE negocio, nada genérico.
+NO inventes anécdotas, historias, personas, nombres ni hechos específicos que no se hayan dado. Si el post necesita una historia real y no la tienes, deja un marcador entre corchetes para que el dueño lo complete (ej. "[cuenta aquí tu caso real]") en vez de fabricarla.
 Canales de venta para el CTA (usa el que aplique, NO inventes links): WhatsApp ${b.whatsapp || 'no disponible'}, catálogo ${b.link_catalogo || 'no disponible'}, link de pago ${b.link_pago || 'no disponible'}, web ${b.link_web || 'no disponible'}.
 Voz del dueño: integra su vocabulario propio (${b.palabras_propias || 'sin indicaciones'}) y NUNCA uses estas palabras prohibidas: ${b.palabras_prohibidas || 'ninguna'}.
 Edición (humaniza): muestra en vez de afirmar; prohibidos los adjetivos vacíos (increíble, espectacular, único, innovador, revolucionario, líder, premium, brutal); ritmo variable (alterna frases cortas y largas); cero relleno ("en la era digital", "más que nunca", "no es solo X, es Y"); concreto sobre abstracto.`;
@@ -93,6 +97,31 @@ Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo
   const handleUsarVariante = async (texto) => {
     setCopy(texto);
     await db.updatePost(postId, { copy: texto, status: 'READY' });
+  };
+
+  // Toma la historia REAL que escribe el dueño y la mejora para publicar, sin
+  // inventar ni agregar hechos. Solo ordena, da ritmo y añade gancho y CTA.
+  const handleMejorarHistoria = async () => {
+    if (!historia.trim() || mejorando) return;
+    setMejorando(true);
+    try {
+      const b = currentBusiness || {};
+      const system = `Eres el redactor de Ideastik para "${b.nombre || 'este negocio'}". Recibes una historia o anécdota REAL contada por el dueño y la conviertes en una publicación lista para ${post.canal || 'Instagram'}.
+REGLA CRÍTICA: NO inventes ni agregues hechos, nombres, fechas, cifras ni detalles que el dueño no haya dicho. No exageres ni adornes con datos falsos. Solo puedes reordenar, dar ritmo, mejorar la redacción y hacerla más clara y humana, respetando fielmente lo que ocurrió. Si algo no queda claro, déjalo general en vez de inventarlo.
+Voz del dueño: integra su vocabulario (${b.palabras_propias || 'sin indicaciones'}) y nunca uses estas palabras prohibidas: ${b.palabras_prohibidas || 'ninguna'}. Prohibidos los adjetivos vacíos y el relleno.`;
+      const userMsg = `Historia real del dueño (respétala, no inventes nada):
+"""${historia.trim()}"""
+Conviértela en un post: empieza con un gancho fiel a la historia, desarróllala en 2 a 4 frases con saltos de línea y cierra con una invitación a la acción suave. Máximo 3 hashtags. Devuelve SOLO el texto del post.`;
+      const texto = await generarTexto(system, [{ role: 'user', content: userMsg }], 700);
+      if (texto) {
+        setCopy(texto);
+        await db.updatePost(postId, { copy: texto, status: 'READY' });
+      }
+    } catch (e) {
+      console.error('Error mejorando historia:', e);
+    } finally {
+      setMejorando(false);
+    }
   };
 
   const handleApplySuggestion = async (newCopy) => {
@@ -209,6 +238,25 @@ Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo
                 })}
               </div>
             )}
+
+            {/* Historia real → la IA la pule sin inventar. Combate los posts falsos. */}
+            <Card className="p-4 space-y-2.5 border-success/20 bg-success/[0.03]">
+              <div>
+                <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <SafeIcon name="Heart" className="w-3.5 h-3.5 text-success" /> ¿Tienes una historia real? Cuéntala y la pulo
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Escríbela como salga, con tus palabras. La mejoro sin inventar nada: lo que no me cuentes, no lo agrego.</p>
+              </div>
+              <Textarea
+                value={historia}
+                onChange={e => setHistoria(e.target.value)}
+                className="min-h-[90px] text-sm bg-white"
+                placeholder="Ej. Hoy una clienta volvió por su tercer par; me contó que..."
+              />
+              <Button size="sm" variant="success" className="w-full" onClick={handleMejorarHistoria} isLoading={mejorando} disabled={!historia.trim()}>
+                <SafeIcon name="Feather" className="w-3.5 h-3.5 mr-1.5" /> Convertir mi historia en post
+              </Button>
+            </Card>
 
             <Card className="p-0 overflow-hidden border-primary/10 shadow-sm">
               <div className="px-4 pt-3 flex items-center justify-between">
