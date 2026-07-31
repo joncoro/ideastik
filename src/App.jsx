@@ -14,6 +14,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const ChatWizard = lazy(() => import('./pages/ChatWizard'));
 const Negocios = lazy(() => import('./pages/Negocios'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 const HomeRedirect = () => {
   const { currentBusiness, allBusinesses, loading, user } = useAuth();
@@ -46,6 +47,22 @@ const ProtectedRoute = ({ children }) => {
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
+
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { user, profile, loading } = useAuth();
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Spinner />
+    </div>
+  );
+
+  if (!user) return <Navigate to="/login" replace />;
+  // Solo administradores designados. Los demás no ven ni acceden al panel.
+  if (!profile?.is_admin) return <Navigate to="/inicio" replace />;
 
   return children;
 };
@@ -84,6 +101,7 @@ export default function App() {
             <Route path="/n/:bizId/ajustes" element={<Settings />} />
             <Route path="/negocios" element={<Negocios />} />
             <Route path="/cuenta" element={<Account />} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/inicio" replace />} />
