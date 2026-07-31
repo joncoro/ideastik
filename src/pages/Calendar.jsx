@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { useNavigate, useParams } from 'react-router-dom';
-import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday } from 'date-fns';
+import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday, addMonths, subMonths, eachDayOfInterval, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button, Skeleton, Card } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
@@ -11,6 +11,7 @@ import InspirationPanel from '../components/InspirationPanel';
 import WizardAgent from '../components/WizardAgent';
 import UpsellModal from '../components/UpsellModal';
 import { puedeCrearMes } from '../lib/plan';
+import { generarIdeasMes, mapIdeasToPosts } from '../lib/parrilla';
 import { motion } from 'framer-motion';
 
 export default function CalendarHub() {
@@ -27,6 +28,9 @@ export default function CalendarHub() {
   const [eventTitle, setEventTitle] = useState('');
   const [savingEvent, setSavingEvent] = useState(false);
   const [upsell, setUpsell] = useState(false);
+  const [generandoMes, setGenerandoMes] = useState(false);
+  const [errorMes, setErrorMes] = useState('');
+  const [historiasBank, setHistoriasBank] = useState([]);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -68,6 +72,10 @@ export default function CalendarHub() {
     if (currentBusiness) loadPosts();
   }, [currentBusiness, currentDate]);
 
+  useEffect(() => {
+    if (currentBusiness?.id) db.getHistorias(currentBusiness.id).then(setHistoriasBank).catch(() => {});
+  }, [currentBusiness?.id]);
+
   const loadPosts = async () => {
     setLoading(true);
     try {
@@ -89,6 +97,87 @@ export default function CalendarHub() {
   const handleCreatePostInSlot = (day) => {
     setSelectedSlot(day);
     setIsInspirationOpen(true);
+  };
+
+  // ¿El negocio ya tiene una estrategia definida? Si sí, podemos regenerar la
+  // parrilla de un mes nuevo reusando pilares/canales, sin repetir todo el wizard.
+  const tieneEstrategia = Array.isArray(currentBusiness?.pilares_seleccionados)
+    && currentBusiness.pilares_seleccionados.length > 0;
+
+  // Genera la parrilla del mes que se está viendo, con ideas frescas.
+  const handleGenerarMes = async () => {
+    if (generandoMes) return;
+    setErrorMes('');
+    // Respeta el límite del plan (FREE = 1 mes de parrilla).
+    const gridsCount = await db.countGrids(currentBusiness.id);
+    const yaExiste = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    if (!yaExiste && !puedeCrearMes(profile, gridsCount)) { setUpsell(true); return; }
+
+    setGenerandoMes(true);
+    try {
+      const mesLabel = format(currentDate, 'MMMM yyyy', { locale: es });
+      const ideasSource = await generarIdeasMes({ ...currentBusiness, historias: historiasBank }, `Estas ideas son para el mes de ${mesLabel}; ténlo en cuenta si aplica alguna fecha o temporada.`);
+      if (!ideasSource || Object.keys(ideasSource).length === 0) {
+        throw new Error('La IA no devolvió ideas válidas.');
+      }
+      const grid = yaExiste || await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      // Si el mes visto es el mes actual real, arranca hoy; si es otro mes, el día 1.
+      const fechaBase = isSameMonth(currentDate, new Date()) ? new Date() : startOfMonth(currentDate);
+      const posts = mapIdeasToPosts(ideasSource, currentBusiness, grid.id, fechaBase);
+      await db.createPosts(posts);
+      try {
+        await db.createNotification({
+          user_id: currentBusiness.user_id,
+          business_id: currentBusiness.id,
+          title: '¡Parrilla del mes lista! 🎉',
+          message: `Creamos ${posts.length} publicaciones para ${mesLabel}.`,
+          type: 'INFO'
+        });
+      } catch (e) { /* la notificación es best-effort */ }
+      await loadPosts();
+    } catch (e) {
+      console.error('No se pudo generar la parrilla del mes:', e);
+      setErrorMes('No pudimos generar la parrilla. Inténtalo de nuevo.');
+    } finally {
+      setGenerandoMes(false);
+    }
+  };
+
+  // Días del mes visto que aún no tienen contenido (para que el agente sugiera
+  // dónde colocar una idea). En el mes actual no ofrece días ya pasados.
+  const diasLibres = (() => {
+    const hoy = startOfDay(new Date());
+    const enMesActual = isSameMonth(currentDate, new Date());
+    return eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) })
+      .filter(d => (!enMesActual || !isBefore(d, hoy)) && !posts.some(p => isSameDay(new Date(p.fecha), d)));
+  })();
+
+  // El agente flotante coloca una idea en el día elegido. Devuelve true si se creó.
+  const handleAddIdeaFromAgent = async (idea, iso) => {
+    try {
+      let grid = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      if (!grid) {
+        const gridsCount = await db.countGrids(currentBusiness.id);
+        if (!puedeCrearMes(profile, gridsCount)) { setUpsell(true); return false; }
+        grid = await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+      }
+      const fecha = iso || (diasLibres[0] || currentDate).toISOString();
+      await db.createPosts([{
+        grid_id: grid.id,
+        fecha,
+        pilar: idea.pilar || idea.pilarName || 'General',
+        pilar_tipo: idea.pilar_tipo || idea.pilarTipo || 'educacion',
+        formato: idea.formato || 'Reel',
+        canal: est.canalPrincipal || 'Instagram',
+        gancho: idea.gancho,
+        hora: '19:00'
+      }]);
+      await loadPosts();
+      return true;
+    } catch (e) {
+      console.error('No se pudo añadir la idea:', e);
+      return false;
+    }
   };
 
   const handleIdeaSelected = async (idea) => {
@@ -234,18 +323,42 @@ export default function CalendarHub() {
     );
   };
 
-  const EmptyState = () => (
-    <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
-      <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
-        <SafeIcon name="Calendar" className="w-10 h-10 opacity-50" />
-      </div>
-      <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Aún no tienes tu parrilla del mes</h3>
-      <p className="text-gray-500 max-w-sm mb-8">Trabajemos juntos para diseñar una estrategia de contenidos que conecte con tu audiencia y venda más.</p>
-      <Button size="lg" onClick={() => navigate(`/n/${currentBusiness.id}/estrategia`)} className="px-8 shadow-xl shadow-primary/20">
-        <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Comenzar Estrategia
-      </Button>
-    </Card>
-  );
+  const EmptyState = () => {
+    const mesLabel = format(currentDate, 'MMMM', { locale: es });
+    // Con estrategia ya definida: ofrecer generar la parrilla de ESTE mes con
+    // ideas frescas (no mandar al wizard, que ya está completado).
+    if (tieneEstrategia) {
+      return (
+        <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
+          <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
+            <SafeIcon name="Zap" className="w-10 h-10 opacity-50" />
+          </div>
+          <h3 className="text-xl font-heading font-bold text-gray-900 mb-2 capitalize">Tu parrilla de {mesLabel} está vacía</h3>
+          <p className="text-gray-500 max-w-sm mb-2">Ya tienes tu estrategia lista. Genero un nuevo mes de ideas basadas en tus pilares y canales, sin repetir el cuestionario.</p>
+          {errorMes && <p className="text-sm text-red-500 mb-3">{errorMes}</p>}
+          <Button size="lg" onClick={handleGenerarMes} isLoading={generandoMes} className="px-8 shadow-xl shadow-primary/20 mt-4">
+            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> {generandoMes ? 'Generando ideas...' : `Generar parrilla de ${mesLabel}`}
+          </Button>
+          <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-xs text-gray-400 hover:text-primary mt-4 flex items-center gap-1">
+            <SafeIcon name="Sliders" className="w-3 h-3" /> Revisar o ajustar mi estrategia antes
+          </button>
+        </Card>
+      );
+    }
+    // Sin estrategia todavía: llevar al wizard a construirla.
+    return (
+      <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
+        <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
+          <SafeIcon name="Calendar" className="w-10 h-10 opacity-50" />
+        </div>
+        <h3 className="text-xl font-heading font-bold text-gray-900 mb-2">Aún no tienes tu parrilla del mes</h3>
+        <p className="text-gray-500 max-w-sm mb-8">Trabajemos juntos para diseñar una estrategia de contenidos que conecte con tu audiencia y venda más.</p>
+        <Button size="lg" onClick={() => navigate(`/n/${currentBusiness.id}/estrategia`)} className="px-8 shadow-xl shadow-primary/20">
+          <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Comenzar Estrategia
+        </Button>
+      </Card>
+    );
+  };
 
   return (
     // pb-32 en móvil deja aire para la barra inferior y el botón de chat
@@ -267,13 +380,25 @@ export default function CalendarHub() {
         </Card>
       )}
       <div className="flex items-center justify-between mb-6 md:mb-8">
-        <h2 className="text-xl md:text-2xl font-heading font-bold capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
+        <div className="flex items-center gap-1.5 md:gap-3">
+          {/* Navegación de meses: permite planear meses siguientes (Mensual). */}
+          <button onClick={() => setCurrentDate(d => subMonths(d, 1))} title="Mes anterior" className="w-8 h-8 rounded-xl border border-white/70 bg-white/50 text-gray-500 hover:text-primary hover:border-primary/30 flex items-center justify-center transition-colors">
+            <SafeIcon name="ChevronLeft" className="w-4 h-4" />
+          </button>
+          <h2 className="text-xl md:text-2xl font-heading font-bold capitalize min-w-[9.5rem] md:min-w-[11rem] text-center">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
+          <button onClick={() => setCurrentDate(d => addMonths(d, 1))} title="Mes siguiente" className="w-8 h-8 rounded-xl border border-white/70 bg-white/50 text-gray-500 hover:text-primary hover:border-primary/30 flex items-center justify-center transition-colors">
+            <SafeIcon name="ChevronRight" className="w-4 h-4" />
+          </button>
+          {!isSameMonth(currentDate, new Date()) && (
+            <button onClick={() => setCurrentDate(new Date())} className="text-[11px] text-primary font-medium hover:underline ml-1">Hoy</button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => openEvento(currentDate)}>
             <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial
           </Button>
           <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
-            <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> Ideas IA
+            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Ideas IA
           </Button>
         </div>
       </div>
@@ -337,7 +462,7 @@ export default function CalendarHub() {
         mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
       />
       <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
-      <WizardAgent context="calendar" />
+      <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} historias={historiasBank} />
     </div>
   );
 }

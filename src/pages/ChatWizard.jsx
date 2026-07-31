@@ -11,9 +11,10 @@ import { Button, Input, Card, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isBefore, startOfDay, isSameMonth, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { WIZARD_PHASES, getNextPhase } from '../lib/wizardMachine';
+import { buildSystemPrompt, buildIdeasPrompt, mapIdeasToPosts } from '../lib/parrilla';
 
 /**
  * Extrae un ARRAY de una respuesta de IA, sin importar el envoltorio.
@@ -66,6 +67,17 @@ const extraerNarrativa = (data) => {
   return '';
 };
 
+/**
+ * Orden de las fases, para calcular cuánto falta. Object.keys respeta el orden
+ * de declaración en wizardMachine, que es el orden real del recorrido.
+ */
+const FASES_ORDEN = Object.keys(WIZARD_PHASES);
+const progresoDe = (fase) => {
+  const i = FASES_ORDEN.indexOf(fase);
+  if (i < 0) return 0;
+  return Math.round(((i + 1) / FASES_ORDEN.length) * 100);
+};
+
 export default function ChatWizard() {
   const { bizId } = useParams();
   const navigate = useNavigate();
@@ -82,53 +94,14 @@ export default function ChatWizard() {
   // Cuando el usuario pide "ajustar", guardamos qué fase de generación rehacer
   // y su próximo mensaje se usa como instrucción extra para regenerar.
   const [ajustePendiente, setAjustePendiente] = useState(null);
+  // Cuando el agente pide aclarar una respuesta vaga, guardamos la fase y la
+  // respuesta parcial; el siguiente mensaje del usuario se combina con ella.
+  const [clarificando, setClarificando] = useState(null);
+  // Pila de fases de datos ya respondidas, para poder "Volver" y corregir.
+  const [faseHistory, setFaseHistory] = useState([]);
 
-  const getSystemPrompt = (biz) => `
-    Eres el Estratega Principal de Posicionamiento de Ideastik.
-    Tu trabajo NO es producir marketing genérico ni "contenido bonito". Tu trabajo es CONSTRUIR PERCEPCIÓN: lograr que el cliente ideal piense "esta marca entiende mi problema mejor que nadie". El contenido es el vehículo, no el objetivo. Aplica este criterio a CUALQUIER cosa que te pida la app: propuesta de valor, narrativa, pilares, estrategia de canales o ideas de post.
-
-    CONTEXTO DEL NEGOCIO
-    - Nombre: ${biz?.nombre || 'sin nombre'}
-    - Qué hace: ${biz?.que_hace || 'no especificado'}
-    - Diferencial real: ${biz?.diferente || 'no especificado'}
-    - Sector: ${biz?.sector || 'general'}
-    - Cliente ideal: ${biz?.cliente_ideal || 'no especificado'}
-    - Observaciones reales del dueño (errores que ve en clientes, lo que explica siempre): ${biz?.insumos_reales || 'no especificado'}
-    - Propuesta de valor: ${biz?.propuesta_valor || 'aún no definida'}
-    - Voz de marca: ${biz?.voz_marca || 'aún no definida'}
-    - Tu vocabulario (palabras/expresiones que el dueño SÍ usa; intégralas con naturalidad): ${biz?.palabras_propias || 'no especificado'}
-    - Palabras/expresiones PROHIBIDAS (nunca las uses): ${biz?.palabras_prohibidas || 'ninguna'}
-    - Canales de venta (úsalos como CTA cuando sea contenido de venta, NO inventes links): WhatsApp ${biz?.whatsapp || 'no'}, catálogo ${biz?.link_catalogo || 'no'}, link de pago ${biz?.link_pago || 'no'}, web ${biz?.link_web || 'no'}
-    - Fechas especiales marcadas (tenlas MUY en cuenta para ideación y contenido): ${(biz?.eventos && biz.eventos.length) ? biz.eventos.map(ev => ev.fecha + ' ' + ev.titulo).join('; ') : 'ninguna'}
-
-    VOZ DE MARCA (OBLIGATORIA): tiene prioridad sobre cualquier fórmula de marketing o estilo de escritura. Si hay conflicto entre una práctica de copywriting y la voz del dueño, prevalece la voz del dueño. Nunca neutralices, estandarices ni corporativices la voz proporcionada.
-
-    PRINCIPIOS (PROHIBICIONES):
-    1. Nunca uses el precio como ventaja competitiva.
-    2. Nunca uses frases vacías (calidad, excelencia, innovación, soluciones integrales, servicio personalizado) salvo que demuestres qué significan concretamente para ESTE negocio.
-    3. Nunca uses la fórmula "no vendemos X, vendemos Y".
-    4. No inventes procesos, metodologías, certificaciones, experiencia, clientes, estadísticas ni resultados que no se hayan proporcionado. Si falta información, infiere con prudencia desde el contexto, sin fabricar datos.
-    5. REGLA DE REALIDAD: prioriza lo que el negocio puede demostrar, explicar o ejecutar en la práctica. Nunca construyas estrategia sobre promesas o ventajas no respaldadas por la información dada.
-    6. Específico para ESTE negocio: si una idea sirve para cualquier empresa del sector, descártala.
-
-    MÉTODO (RAZONA ANTES DE RESPONDER): identifica qué sabe este negocio que su cliente desconoce; qué creencias equivocadas tiene el mercado; qué decisiones suele tomar mal el cliente; qué ocurre detrás de cámaras. Convierte eso en percepción de valor y autoridad. Construye desde activos reales: experiencia, método propio, criterio, conocimiento especializado, casos reales, errores frecuentes, insights del sector, procesos internos, decisiones difíciles y resultados observados.
-    ORDEN DE PRIORIDAD: 1) casos reales 2) errores del cliente 3) insights del sector 4) decisiones de compra 5) detrás de cámaras 6) tendencias 7) motivación 8) inspiración. Prioriza los niveles superiores.
-
-    PRINCIPIO DE HUMANIDAD: prioriza observaciones reales sobre explicaciones teóricas. Habla como alguien que trabaja todos los días en este negocio. Prefiere ejemplos, situaciones, errores, anécdotas y decisiones antes que conceptos abstractos. Entre dos formas de decir lo mismo, elige la más concreta y humana. Prohibido el lenguaje de departamento de marketing o RR.PP. ("entendemos la importancia de", "en el entorno actual", "es fundamental considerar", "las empresas enfrentan desafíos"): nadie habla así.
-    SEÑALES DE CONTENIDO HUMANO (priorízalas frente a consejos genéricos): algo que sorprendió al negocio; un error que comete el cliente; una decisión difícil; algo que cambió de opinión al equipo; un detalle detrás de cámaras; una conversación real con clientes; un patrón observado muchas veces. Pregúntate "¿qué pasó realmente?" antes de "¿qué consejo de marketing puedo dar?". Si el dueño dio "Observaciones reales", úsalas como PRIMERA fuente de ideas, ejemplos y ángulos.
-
-    CALIDAD: cada salida debe ser específica, relevante para el cliente ideal, accionable, basada en experiencia real, diferenciadora y difícil de copiar. Apunta a efectos como "no lo había pensado así", "cometí ese error" o "necesito hablar con esta empresa". Si algo no cumple, reemplázalo.
-
-    AGENTE EDITOR (HUMANIZA TODO TEXTO QUE PRODUZCAS):
-    - Muestra, no afirmes: en vez de decir que algo es bueno, describe el hecho concreto que lo prueba y deja que el lector lo concluya.
-    - Adjetivos vacíos PROHIBIDOS: increíble, espectacular, asombroso, fascinante, revolucionario, innovador, único, líder, mejor, premium, mágico, brutal, de otro nivel. Si la frase se sostiene al quitar el adjetivo, quítalo.
-    - Ritmo variable: alterna frases cortas y largas; nunca tres seguidas con la misma estructura o longitud.
-    - Cero relleno: nada de "en el mundo de hoy", "en la era digital", "más que nunca", "no es solo X, es Y". Ve directo.
-    - Concreto sobre abstracto: números, nombres, objetos y situaciones reales antes que conceptos.
-    - Respeta el vocabulario propio del dueño y NUNCA uses las palabras prohibidas indicadas arriba.
-
-    FORMATO: Responde SIEMPRE con JSON válido y COMPLETO, según el esquema que pida la app. Nunca cortes la respuesta. No agregues texto fuera del JSON.
-  `;
+  // El system prompt vive en lib/parrilla.js (compartido con el Calendario).
+  const getSystemPrompt = buildSystemPrompt;
 
   useEffect(() => {
     const init = async () => {
@@ -335,6 +308,53 @@ export default function ChatWizard() {
       return;
     }
 
+    // --- Clarificación de respuestas vagas en fases de datos (mayor autonomía) ---
+    // Si la respuesta a "qué vendes", "tu diferencial" o "tu cliente ideal" es
+    // genérica, el agente hace UNA repregunta concreta antes de guardar. Así no
+    // arrastra basura a la propuesta de valor, pilares e ideas (caso e-commerce).
+    const CLARIFICA = new Set(['DATOS_QUEHACE', 'DATOS_QUE_DIFERENTE', 'DATOS_CLIENTE']);
+    if (CLARIFICA.has(currentFase)) {
+      // Segunda respuesta: ya pedimos aclaración; combinamos con la parcial y avanzamos.
+      if (clarificando && clarificando.fase === currentFase) {
+        const combinado = [clarificando.parcial, text].filter(Boolean).join('. ');
+        setClarificando(null);
+        setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+        if (businessData?.id) await saveMessage('user', text, null, businessData.id);
+        await commitAnswer(text, combinado, true);
+        return;
+      }
+      // Primera respuesta: mostrarla y evaluar si es suficientemente específica.
+      setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+      if (businessData?.id) await saveMessage('user', text, null, businessData.id);
+      setIsTyping(true);
+      let suficiente = true, pregunta = '';
+      try {
+        const cfgQ = WIZARD_PHASES[currentFase]?.question || '';
+        const r = await generarJSON(
+          'Eres el estratega de Ideastik evaluando si la respuesta de un emprendedor es lo bastante concreta para construir una estrategia de contenido específica. Responde SOLO con JSON válido.',
+          [{ role: 'user', content: `Negocio del sector "${businessData?.sector || 'general'}"${businessData?.que_hace ? `, que vende: "${businessData.que_hace}"` : ''}. Se le preguntó: "${cfgQ}". Respondió: "${text}". ¿Es específica y accionable, o es vaga/genérica (ej. "vendo productos", "de todo", "ropa" a secas, "buena atención")? Si es vaga, formula UNA sola repregunta corta y concreta que la aterrice (qué exactamente, para quién, qué la hace distinta). Devuelve {"suficiente": true|false, "pregunta": "una sola repregunta, o vacío si es suficiente"}.` }],
+          300
+        );
+        if (r && typeof r === 'object') { suficiente = r.suficiente !== false; pregunta = (r.pregunta || '').trim(); }
+      } catch (e) { suficiente = true; }
+      setIsTyping(false);
+      if (!suficiente && pregunta) {
+        setClarificando({ fase: currentFase, parcial: text });
+        setMessages(prev => [...prev, { id: 'ai-' + Date.now(), role: 'agent', content: pregunta }]);
+        if (businessData?.id) await saveMessage('agent', pregunta, null, businessData.id);
+        return;
+      }
+      await commitAnswer(text, value, true);
+      return;
+    }
+
+    await commitAnswer(text, value);
+  };
+
+  // Guarda la respuesta de la fase actual y avanza a la siguiente. Si el mensaje
+  // del usuario ya se mostró y guardó (p. ej. tras una clarificación), pasa
+  // userMsgYaMostrado=true para no duplicarlo.
+  const commitAnswer = async (text, value, userMsgYaMostrado = false) => {
     const config = WIZARD_PHASES[currentFase];
     const nextFase = config.next;
 
@@ -342,7 +362,7 @@ export default function ChatWizard() {
     const dataUpdate = config.field ? { [config.field]: valToSave } : {};
     if (currentFase === 'DIAS_ELEGIR') dataUpdate.fecha_inicio = value;
 
-    setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
+    if (!userMsgYaMostrado) setMessages(prev => [...prev, { id: 'u-' + Date.now(), role: 'user', content: text }]);
 
     let activeBiz = businessData;
     if (!activeBiz) {
@@ -354,7 +374,7 @@ export default function ChatWizard() {
       navigate(`/n/${activeBiz.id}/estrategia`, { replace: true });
     } else {
       await db.updateBusiness(activeBiz.id, { ...dataUpdate, current_fase: nextFase });
-      await saveMessage('user', text, null, activeBiz.id);
+      if (!userMsgYaMostrado) await saveMessage('user', text, null, activeBiz.id);
       activeBiz = { ...activeBiz, ...dataUpdate, current_fase: nextFase };
       setBusinessData(activeBiz);
     }
@@ -370,8 +390,28 @@ export default function ChatWizard() {
       navigate(`/n/${activeBiz.id}/calendario`);
       return;
     }
+    // Guardamos la fase respondida (solo las de datos) para poder volver a corregir.
+    if (currentFase.startsWith('DATOS')) setFaseHistory(h => [...h, currentFase]);
     setCurrentFase(nextFase);
     startPhase(nextFase, activeBiz);
+  };
+
+  // Vuelve al paso de datos anterior para corregir una respuesta ya enviada.
+  const handleVolver = async () => {
+    if (faseHistory.length === 0 || isTyping) return;
+    const prev = faseHistory[faseHistory.length - 1];
+    setFaseHistory(h => h.slice(0, -1));
+    setClarificando(null);
+    setAjustePendiente(null);
+    setMessages(m => [...m, { id: 'u-' + Date.now(), role: 'user', content: '↩ Quiero corregir el paso anterior' }]);
+    let biz = businessData;
+    if (biz?.id) {
+      await db.updateBusiness(biz.id, { current_fase: prev });
+      biz = { ...biz, current_fase: prev };
+      setBusinessData(biz);
+    }
+    setCurrentFase(prev);
+    startPhase(prev, biz, null, true);
   };
 
   const handleContactoSave = async (fields) => {
@@ -398,26 +438,9 @@ export default function ChatWizard() {
     if (fase === 'ESTRATEGIA_GENERAR') tokens = 1000;
     if (fase === 'IDEAS_GENERAR') tokens = 3000;
 
-    // Construcción del prompt. Para IDEAS, inyectamos los nombres EXACTOS de los
-    // pilares seleccionados para que Claude los use como claves (si no, inventa
-    // nombres distintos y la parrilla no encuentra match).
-    let promptFinal = config.prompt;
-    if (fase === 'IDEAS_GENERAR') {
-      const sel = Array.isArray(biz.pilares_seleccionados) ? biz.pilares_seleccionados : [];
-      const nombres = sel.map(p => p.nombre).filter(Boolean);
-      if (nombres.length > 0) {
-        // Banco de preguntas detonadoras por tipo de pilar (del método Ideastik)
-        const banco = {
-          autoridad: 'qué decisión técnica tomas que el cliente no entendería, qué error común tú no cometes',
-          conexion: 'qué te llevó a empezar, qué pasó esta semana que te recordó por qué haces esto',
-          venta: 'qué tienes disponible esta semana, cuál es tu producto o servicio estrella',
-          prueba_social: 'quién compró esta semana, quién contaría su experiencia',
-          educacion: 'qué pregunta te hacen siempre, qué mito existe sobre tu sector',
-        };
-        const guia = sel.map(p => `"${p.nombre}" (pilar de ${p.tipo}: detona con — ${banco[p.tipo] || 'algo útil para el cliente'})`).join('; ');
-        promptFinal = `Genera exactamente 2 ideas de post para CADA uno de estos pilares, usando EXACTAMENTE estos nombres como claves (sin inventar otros). Para cada pilar, inspírate en sus preguntas detonadoras: ${guia}. Las ideas deben ser concretas, hablarle al cliente ideal y específicas a este negocio (nada genérico). Cada 'gancho' y 'desc' corto (máximo 14 palabras). Responde SOLO con JSON válido y completo: {"ideas": {${nombres.map(n => `"${n}": [{"gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]`).join(', ')}}}`;
-      }
-    }
+    // Construcción del prompt. Para IDEAS usamos el builder compartido (inyecta los
+    // nombres EXACTOS de los pilares como claves para que la parrilla haga match).
+    let promptFinal = fase === 'IDEAS_GENERAR' ? buildIdeasPrompt(biz) : config.prompt;
 
     // Si el usuario pidió un ajuste, lo añadimos como instrucción al prompt.
     if (ajuste) {
@@ -451,43 +474,15 @@ export default function ChatWizard() {
   };
 
   const finalizeParrilla = async (biz) => {
-    const grid = await db.createGrid(biz.id, new Date().getMonth() + 1, new Date().getFullYear());
+    // El grid se ancla al mes de la fecha de inicio elegida (no al mes del sistema),
+    // para que no queden desalineados cerca del cambio de mes.
     const startDate = new Date(biz.fecha_inicio || Date.now());
-    const posts = [];
-    let postCount = 0;
+    const grid = await db.createGrid(biz.id, startDate.getMonth() + 1, startDate.getFullYear());
 
-    // ideas viene como {ideas:{Pilar:[...]}} o {Pilar:[...]}; estrategia como {estrategia:{...}} o {...}
+    // ideas viene como {ideas:{Pilar:[...]}} o {Pilar:[...]}
     const ideasObj = extraerObjeto(biz.ideas);
     const ideasSource = ideasObj.ideas && typeof ideasObj.ideas === 'object' ? ideasObj.ideas : ideasObj;
-    const estObj = extraerObjeto(biz.estrategia);
-    const est = estObj.estrategia && typeof estObj.estrategia === 'object' ? estObj.estrategia : estObj;
-
-    const pilaresSel = Array.isArray(biz.pilares_seleccionados) ? biz.pilares_seleccionados : [];
-
-    // Normaliza un nombre para comparar sin acentos/mayúsculas/espacios extra.
-    const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-
-    Object.entries(ideasSource).forEach(([pilarName, ideas]) => {
-      // Match flexible: exacto, o por nombre normalizado, o por inclusión parcial.
-      const pilar = pilaresSel.find(p => norm(p.nombre) === norm(pilarName))
-        || pilaresSel.find(p => norm(p.nombre).includes(norm(pilarName)) || norm(pilarName).includes(norm(p.nombre)));
-      if (Array.isArray(ideas)) {
-        ideas.forEach((idea) => {
-          const postDate = addDays(startDate, postCount * 2);
-          posts.push({
-            grid_id: grid.id,
-            fecha: postDate.toISOString(),
-            pilar: pilar?.nombre || pilarName,
-            pilar_tipo: pilar?.tipo || 'educacion',
-            gancho: idea.gancho,
-            formato: idea.formato || 'Reel',
-            canal: est.canalPrincipal || 'Instagram',
-            hora: '19:00'
-          });
-          postCount++;
-        });
-      }
-    });
+    const posts = mapIdeasToPosts(ideasSource, biz, grid.id, startDate);
 
     await db.createPosts(posts);
     await db.updateBusiness(biz.id, { current_fase: 'COMPLETADO' });
@@ -657,15 +652,52 @@ export default function ChatWizard() {
   };
 
   const DayPickerWidget = ({ onSelect, disabled }) => {
-    const days = eachDayOfInterval({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) });
+    const hoy = startOfDay(new Date());
+    // El mes que se muestra. Si hoy es el último día del mes, arranca en el siguiente
+    // (no tendría sentido mostrar un mes sin días futuros).
+    const inicial = isSameMonth(hoy, endOfMonth(hoy)) && hoy.getDate() === endOfMonth(hoy).getDate()
+      ? addMonths(hoy, 1) : hoy;
+    const [viewMonth, setViewMonth] = useState(startOfMonth(inicial));
+    const days = eachDayOfInterval({ start: startOfMonth(viewMonth), end: endOfMonth(viewMonth) });
+    // Relleno para alinear el día 1 con su día de la semana (lunes = primera columna).
+    const offset = (getDay(startOfMonth(viewMonth)) + 6) % 7;
+    const puedeRetroceder = !isSameMonth(viewMonth, hoy) && isBefore(hoy, viewMonth);
+    const puedeAvanzar = isBefore(viewMonth, startOfMonth(addMonths(hoy, 2))); // hasta 2 meses adelante
+
     return (
       <div className={cn("mt-4 bg-white rounded-2xl border p-4 shadow-sm", disabled && "opacity-60")}>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map(day => (
-            <button key={day.toString()} disabled={disabled} onClick={() => onSelect(`Empezar el ${format(day, "d 'de' MMMM", { locale: es })}`, day.toISOString())} className="h-8 w-8 rounded-lg text-xs flex items-center justify-center hover:bg-primary/10">
-              {format(day, 'd')}
-            </button>
+        <div className="flex items-center justify-between mb-3">
+          <button disabled={disabled || !puedeRetroceder} onClick={() => setViewMonth(m => startOfMonth(addMonths(m, -1)))} className={cn("w-7 h-7 rounded-lg flex items-center justify-center", puedeRetroceder && !disabled ? "text-primary hover:bg-primary/10" : "text-gray-200")}>
+            <SafeIcon name="ChevronLeft" className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-heading font-bold capitalize text-gray-800">{format(viewMonth, 'MMMM yyyy', { locale: es })}</span>
+          <button disabled={disabled || !puedeAvanzar} onClick={() => setViewMonth(m => startOfMonth(addMonths(m, 1)))} className={cn("w-7 h-7 rounded-lg flex items-center justify-center", puedeAvanzar && !disabled ? "text-primary hover:bg-primary/10" : "text-gray-200")}>
+            <SafeIcon name="ChevronRight" className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => (
+            <div key={i} className="h-6 text-[10px] font-bold text-gray-300 flex items-center justify-center">{d}</div>
           ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: offset }).map((_, i) => <div key={'e' + i} className="h-8 w-8" />)}
+          {days.map(day => {
+            const pasado = isBefore(day, hoy);
+            return (
+              <button
+                key={day.toString()}
+                disabled={disabled || pasado}
+                onClick={() => onSelect(`Empezar el ${format(day, "d 'de' MMMM", { locale: es })}`, day.toISOString())}
+                className={cn(
+                  "h-8 w-8 rounded-lg text-xs flex items-center justify-center transition-colors",
+                  pasado ? "text-gray-200 cursor-not-allowed line-through" : "text-gray-700 hover:bg-primary hover:text-white"
+                )}
+              >
+                {format(day, 'd')}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -835,7 +867,7 @@ export default function ChatWizard() {
         <div className="absolute top-1/2 right-16 w-16 h-16 rounded-full border border-white/20" />
         {/* Glass card flotante */}
         <div className="absolute top-20 right-10 hidden xl:flex flex-col gap-2 p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 w-52 rotate-3">
-          <div className="w-8 h-8 rounded-lg bg-white/25 flex items-center justify-center"><SafeIcon name="Sparkles" className="w-4 h-4 text-white" /></div>
+          <div className="w-8 h-8 rounded-lg bg-white/25 flex items-center justify-center"><SafeIcon name="Zap" className="w-4 h-4 text-white" /></div>
           <div className="h-2 w-3/4 rounded-full bg-white/30" />
           <div className="h-2 w-1/2 rounded-full bg-white/20" />
         </div>
@@ -853,6 +885,37 @@ export default function ChatWizard() {
     );
   };
 
+  // Estados de carga y error: antes se calculaban pero nunca se pintaban, así que
+  // un fallo al cargar el negocio dejaba un chat vacío y sin salida.
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center gap-3">
+        <Spinner />
+        <p className="text-xs text-gray-400">Cargando tu estrategia...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center p-6">
+        <Card className="p-8 max-w-md text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto">
+            <SafeIcon name="AlertTriangle" className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-lg text-gray-900 mb-1">No pudimos abrir esta estrategia</h2>
+            <p className="text-sm text-gray-500">{error}</p>
+          </div>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" onClick={() => window.location.reload()}>Reintentar</Button>
+            <Button onClick={() => navigate('/negocios')}>Ir a mis negocios</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* PANEL VISUAL — solo escritorio */}
@@ -862,11 +925,29 @@ export default function ChatWizard() {
 
       {/* COLUMNA DE CONVERSACIÓN */}
       <div className="flex flex-col h-full flex-1 relative max-w-2xl mx-auto w-full">
-      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center gap-3 shrink-0 z-10">
-        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary"><SafeIcon name="Zap" className="w-5 h-5" /></div>
-        <div>
-          <h2 className="font-heading font-bold text-gray-900 leading-none">Estratega Ideastik</h2>
-          <span className="text-[11px] text-success font-medium">● En línea</span>
+      <header className="bg-white/70 backdrop-blur-md border-b border-gray-100 shrink-0 z-10">
+        <div className="px-4 md:px-6 py-4 flex items-center gap-3">
+          {/* Salida del wizard: el shell (sidebar/nav) está oculto en esta ruta,
+              así que sin este botón el usuario queda encerrado en la pantalla. */}
+          <button
+            onClick={() => navigate('/negocios')}
+            title="Salir (tu avance queda guardado)"
+            className="w-9 h-9 rounded-xl border border-white/70 bg-white/60 hover:bg-white text-gray-500 hover:text-gray-900 flex items-center justify-center transition-colors shrink-0"
+          >
+            <SafeIcon name="ArrowLeft" className="w-4 h-4" />
+          </button>
+          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0"><SafeIcon name="Zap" className="w-5 h-5" /></div>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-heading font-bold text-gray-900 leading-none truncate">Estratega Ideastik</h2>
+            <span className="text-[11px] text-success font-medium">● En línea</span>
+          </div>
+          <span className="text-[11px] text-gray-400 font-medium shrink-0 hidden sm:block">
+            Paso {Math.max(1, FASES_ORDEN.indexOf(currentFase) + 1)} de {FASES_ORDEN.length}
+          </span>
+        </div>
+        {/* Progreso: el recorrido son 15+ pasos y no había forma de saber cuánto falta. */}
+        <div className="h-1 w-full bg-gray-100">
+          <div className="h-full bg-gradient-to-r from-primary to-[#8B5CF6] transition-all duration-500" style={{ width: `${progresoDe(currentFase)}%` }} />
         </div>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 md:px-8 py-6 space-y-6 pb-28">
@@ -893,10 +974,18 @@ export default function ChatWizard() {
         {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white/80 via-white/40 to-transparent backdrop-blur-sm">
-        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue, undefined, true); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
-          <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
-          <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
-        </form>
+        <div className="max-w-2xl mx-auto">
+          {/* Corregir: vuelve al paso de datos anterior para reescribir la respuesta. */}
+          {faseHistory.length > 0 && currentFase.startsWith('DATOS') && !isTyping && !clarificando && !ajustePendiente && (
+            <button onClick={handleVolver} className="mb-2 ml-1 text-[12px] text-gray-400 hover:text-primary flex items-center gap-1 transition-colors">
+              <SafeIcon name="CornerUpLeft" className="w-3.5 h-3.5" /> Corregir el paso anterior
+            </button>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue, undefined, true); setInputValue(''); } }} className="flex gap-2 items-center">
+            <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
+            <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
+          </form>
+        </div>
       </div>
       </div>
     </div>

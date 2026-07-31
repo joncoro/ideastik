@@ -13,6 +13,7 @@ const Report = lazy(() => import('./pages/Report'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ChatWizard = lazy(() => import('./pages/ChatWizard'));
 const Negocios = lazy(() => import('./pages/Negocios'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
 
 const HomeRedirect = () => {
   const { currentBusiness, allBusinesses, loading, user } = useAuth();
@@ -75,7 +76,7 @@ export default function App() {
           
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/inicio" element={<HomeRedirect />} />
-            <Route path="/empezar" element={<ChatWizard />} />
+            <Route path="/empezar" element={<Onboarding />} />
             <Route path="/n/:bizId/estrategia" element={<ChatWizard />} />
             <Route path="/n/:bizId/calendario" element={<CalendarHub />} />
             <Route path="/n/:bizId/post/:postId" element={<Composer />} />

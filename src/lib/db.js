@@ -115,5 +115,27 @@ export const db = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  // Banco de historias / material real de la marca (memoria del negocio)
+  async createHistoria(businessId, texto, origen = 'editor', tipo = null) {
+    const { data, error } = await supabase
+      .from('historias')
+      .insert([{ business_id: businessId, texto, origen, tipo }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async getHistorias(businessId, limit = 20) {
+    const { data, error } = await supabase
+      .from('historias')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
   }
 };

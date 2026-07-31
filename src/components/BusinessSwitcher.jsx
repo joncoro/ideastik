@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SafeIcon from '../common/SafeIcon';
@@ -9,11 +9,22 @@ export default function BusinessSwitcher() {
   const { currentBusiness, allBusinesses, switchBusiness, user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const ref = useRef(null);
+
+  // Cierre por clic afuera vía listener de documento: el overlay fixed quedaba
+  // atrapado en el stacking context de la barra lateral (glass) y no capturaba
+  // clics sobre el área principal, dejando el menú "pegado".
+  useEffect(() => {
+    if (!isOpen) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [isOpen]);
 
   if (!currentBusiness) return null;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="w-full mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3 cursor-pointer hover:bg-gray-100 transition-colors group"
@@ -33,9 +44,7 @@ export default function BusinessSwitcher() {
 
       <AnimatePresence>
         {isOpen && (
-          <>
-            <div className="fixed inset-0 z-20" onClick={() => setIsOpen(false)} />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -71,12 +80,9 @@ export default function BusinessSwitcher() {
                 <button 
                   onClick={() => {
                     setIsOpen(false);
-                    if (user.plan === 'MENSUAL') {
-                      navigate('/onboarding');
-                    } else {
-                      alert('El plan Mensual te permite gestionar múltiples negocios.');
-                      navigate('/cuenta');
-                    }
+                    // La pantalla de Negocios valida el límite del plan y muestra el
+                    // upsell si corresponde; centralizamos ahí la creación.
+                    navigate('/negocios');
                   }}
                   className="w-full flex items-center gap-2 p-2 text-xs font-semibold text-gray-500 hover:text-primary transition-colors"
                 >
@@ -85,7 +91,6 @@ export default function BusinessSwitcher() {
                 </button>
               </div>
             </motion.div>
-          </>
         )}
       </AnimatePresence>
     </div>

@@ -7,7 +7,7 @@ import SafeIcon from '../common/SafeIcon';
 /**
  * Modal de upsell reutilizable. Lleva al usuario al plan Mensual (/cuenta).
  */
-export default function UpsellModal({ open, onClose, titulo, mensaje }) {
+export default function UpsellModal({ open, onClose, titulo, mensaje, soloInfo = false }) {
   const navigate = useNavigate();
   return (
     <AnimatePresence>
@@ -33,12 +33,20 @@ export default function UpsellModal({ open, onClose, titulo, mensaje }) {
                 <p className="text-sm text-gray-500 leading-relaxed">{mensaje}</p>
               </div>
               <div className="flex flex-col gap-2 pt-1">
-                <Button className="w-full shadow-lg shadow-primary/20" onClick={() => navigate('/cuenta')}>
-                  Ver plan Mensual
-                </Button>
-                <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600 font-medium py-1">
-                  Ahora no
-                </button>
+                {soloInfo ? (
+                  <Button className="w-full shadow-lg shadow-primary/20" onClick={onClose}>
+                    Entendido
+                  </Button>
+                ) : (
+                  <>
+                    <Button className="w-full shadow-lg shadow-primary/20" onClick={() => navigate('/cuenta')}>
+                      Ver plan Mensual
+                    </Button>
+                    <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600 font-medium py-1">
+                      Ahora no
+                    </button>
+                  </>
+                )}
               </div>
             </Card>
           </motion.div>

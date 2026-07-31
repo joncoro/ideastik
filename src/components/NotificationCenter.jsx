@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import supabase from '../supabase/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,19 @@ export default function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const btnRef = useRef(null);
+  const [coords, setCoords] = useState(null);
+
+  // Ancla el panel bajo la campanita usando su posición en pantalla. El panel se
+  // renderiza en un portal a <body> (ver abajo) para que ningún contenedor con
+  // backdrop-blur/overflow lo recorte ni lo esconda tras la barra lateral.
+  const abrir = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setCoords({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+    }
+    setIsOpen(true);
+  };
 
   useEffect(() => {
     if (user) {
@@ -86,8 +100,9 @@ export default function NotificationCenter() {
 
   return (
     <div className="relative">
-      <button 
-        onClick={() => setIsOpen(!isOpen)} 
+      <button
+        ref={btnRef}
+        onClick={() => (isOpen ? setIsOpen(false) : abrir())}
         className="relative p-2 text-gray-400 hover:text-primary transition-colors rounded-full hover:bg-gray-100"
       >
         <SafeIcon name="Bell" className="w-5 h-5" />
@@ -98,16 +113,18 @@ export default function NotificationCenter() {
         )}
       </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-            <motion.div 
-              initial={{ opacity: 0, y: 10, scale: 0.95 }} 
-              animate={{ opacity: 1, y: 0, scale: 1 }} 
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden"
-            >
+      {createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <>
+              <div className="fixed inset-0 z-[120]" onClick={() => setIsOpen(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                style={{ top: coords?.top ?? 64, right: coords?.right ?? 16 }}
+                className="fixed w-80 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-2xl shadow-2xl z-[130] overflow-hidden"
+              >
               <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                 <h3 className="font-heading font-bold text-sm">Notificaciones</h3>
                 {unreadCount > 0 && (
@@ -163,9 +180,11 @@ export default function NotificationCenter() {
                 )}
               </div>
             </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
