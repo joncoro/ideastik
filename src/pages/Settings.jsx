@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import supabase from '../supabase/supabase';
 import { db } from '../lib/db';
@@ -30,10 +31,14 @@ const getPilaresSel = (biz) => {
 const TIPOS = ['autoridad', 'conexion', 'venta', 'educacion', 'prueba_social'];
 
 export default function Settings() {
-  const { currentBusiness, refreshBusiness } = useAuth();
+  const { currentBusiness, refreshBusiness, switchBusiness, setCurrentBusiness, allBusinesses } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [showDelete, setShowDelete] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
     sector: '',
@@ -119,6 +124,30 @@ export default function Settings() {
       alert('Hubo un error al guardar los cambios. Por favor intenta de nuevo.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteBusiness = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const id = currentBusiness.id;
+      const otros = (allBusinesses || []).filter(b => b.id !== id);
+      await db.deleteBusiness(id);
+      if (otros.length > 0) {
+        switchBusiness(otros[0]);
+        await refreshBusiness();
+        navigate(`/n/${otros[0].id}/calendario`);
+      } else {
+        setCurrentBusiness(null);
+        localStorage.removeItem('ideastik_current_biz_id');
+        await refreshBusiness();
+        navigate('/empezar');
+      }
+    } catch (err) {
+      console.error('Error al eliminar el negocio:', err);
+      alert('No se pudo eliminar el negocio. Inténtalo de nuevo.');
+      setDeleting(false);
     }
   };
 
@@ -254,6 +283,53 @@ export default function Settings() {
             <SaveBtn type="submit" label="Guardar cambios" />
           </div>
         </form>
+      )}
+
+      {activeTab === 'general' && (
+        <Card className="p-6 border-red-200/60 bg-red-50/30 mt-2">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-100 text-red-500 flex items-center justify-center shrink-0">
+              <SafeIcon name="AlertTriangle" className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-heading font-bold text-gray-900">Eliminar este negocio</h3>
+              <p className="text-sm text-gray-500 mt-0.5 mb-4">
+                Se borrarán permanentemente <b>{currentBusiness?.nombre}</b> y toda su estrategia, calendarios, publicaciones, historias e historial. Esta acción no se puede deshacer.
+              </p>
+              <Button variant="danger" size="sm" onClick={() => { setConfirmName(''); setShowDelete(true); }}>
+                <SafeIcon name="Trash2" className="w-4 h-4 mr-1.5" /> Eliminar negocio
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {showDelete && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setShowDelete(false)} />
+          <Card className="relative w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><SafeIcon name="Trash2" className="w-5 h-5" /></div>
+              <h3 className="font-heading font-bold text-lg">Eliminar negocio</h3>
+            </div>
+            <p className="text-sm text-gray-500">
+              Esto borrará <b>{currentBusiness?.nombre}</b> y todo su contenido, sin vuelta atrás. Para confirmar, escribe el nombre del negocio:
+            </p>
+            <Input value={confirmName} onChange={e => setConfirmName(e.target.value)} placeholder={currentBusiness?.nombre} autoFocus />
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setShowDelete(false)} disabled={deleting}>Cancelar</Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                isLoading={deleting}
+                disabled={confirmName.trim() !== (currentBusiness?.nombre || '').trim()}
+                onClick={handleDeleteBusiness}
+              >
+                Eliminar
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {activeTab === 'estrategia' && (

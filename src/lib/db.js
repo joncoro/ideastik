@@ -33,6 +33,17 @@ export const db = {
     return data;
   },
 
+  // Elimina un negocio. La BD borra en cascada sus grids, posts, mensajes,
+  // notificaciones, recordatorios e historias (todas las FK son ON DELETE CASCADE).
+  async deleteBusiness(id) {
+    const { error } = await supabase
+      .from('businesses')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
   // Grids
   async getGrid(businessId, mes, anio) {
     const { data, error } = await supabase
