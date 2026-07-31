@@ -10,6 +10,7 @@ import { cn, getPilarBorder } from '../lib/utils';
 import InspirationPanel from '../components/InspirationPanel';
 import WizardAgent from '../components/WizardAgent';
 import UpsellModal from '../components/UpsellModal';
+import TipNegocio from '../components/TipNegocio';
 import { puedeCrearMes } from '../lib/plan';
 import { generarIdeasMes, mapIdeasToPosts } from '../lib/parrilla';
 import { motion } from 'framer-motion';
@@ -406,6 +407,9 @@ export default function CalendarHub() {
           </div>
         </Card>
       )}
+      {/* Tip por sector (Fase 1): consejo real curado, personalizable con IA. */}
+      {currentBusiness && <TipNegocio business={currentBusiness} />}
+
       {/* Racha / contador de publicaciones: refuerza el hábito con un número
           grande y una frase de aliento (no una gráfica corporativa). */}
       {(posts.length > 0 || resumenPub.total > 0) && (
