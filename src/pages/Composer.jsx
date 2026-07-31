@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import { generarTexto, generarJSON } from '../lib/ia';
+import { generarTexto, generarJSON, generarJSONConImagen } from '../lib/ia';
 import { buildSystemPrompt } from '../lib/parrilla';
 import { Button, Card, Textarea, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
@@ -30,6 +30,12 @@ export default function Composer() {
   const [historiasBank, setHistoriasBank] = useState([]);
   const [historiaGuardada, setHistoriaGuardada] = useState(false);
   const [marcando, setMarcando] = useState(false);
+  // Foto → contenido (visión de la IA).
+  const [imagenPreview, setImagenPreview] = useState(null);
+  const [descripcionImagen, setDescripcionImagen] = useState('');
+  const [analizandoImagen, setAnalizandoImagen] = useState(false);
+  const [errorImagen, setErrorImagen] = useState('');
+  const fileInputRef = useRef(null);
 
   const publicado = post?.status === 'PUBLISHED';
   const handleTogglePublicado = async () => {
@@ -176,6 +182,63 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
     }
   };
 
+  // Redimensiona la foto en el navegador antes de enviarla (más rápido y barato:
+  // menos tokens de visión). Devuelve { dataUrl, base64, mediaType }.
+  const fileToResizedBase64 = (file, maxDim = 1024) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve({ dataUrl, base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Sube una foto → la IA la "lee" y propone descripción + guion + copys, atados
+  // al negocio y su voz. Reusa el estado `ideas` para mostrarlo con la UI actual.
+  const handleImagenSeleccionada = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErrorImagen('Sube una imagen (foto de tu producto, lugar o servicio).'); return; }
+    setAnalizandoImagen(true);
+    setErrorImagen('');
+    setDescripcionImagen('');
+    try {
+      const img = await fileToResizedBase64(file);
+      setImagenPreview(img.dataUrl);
+      const formato = post.formato || 'Reel';
+      const system = buildSystemPrompt(bizConMemoria());
+      const userText = `El dueño subió esta foto real de su negocio para convertirla en contenido (pilar "${post.pilar || 'general'}"${post.pilar_tipo ? `, tipo ${post.pilar_tipo}` : ''}, formato ${formato}, canal ${post.canal || 'Instagram'}).
+1) DESCRIBE con precisión SOLO lo que se ve en la foto (producto/escena, colores, materiales, detalles vendibles). No inventes nada que no esté en la imagen ni datos del negocio que no te hayan dado.
+2) GUION de producción para esta pieza basado en lo que muestra la foto.
+3) Tres VARIANTES de copy con enfoques DISTINTOS (ej. describir el producto, contar la historia detrás, venta directa), fieles a la foto y a la voz de la marca; cada una con gancho + 2 a 4 frases + CTA suave + máximo 3 hashtags. Si hace falta un dato real que no está en la foto, deja un marcador entre corchetes en vez de inventarlo.
+Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tipo":"${formato}","titulo":"string corto","pasos":["string","string"]},"variantes":[{"enfoque":"string corto","copy":"string"}]}`;
+      const r = await generarJSONConImagen(system, userText, { base64: img.base64, mediaType: img.mediaType }, 1900);
+      if (!r) { setErrorImagen('No pude leer bien la foto. Prueba con otra o inténtalo de nuevo.'); return; }
+      const guion = r?.guion && typeof r.guion === 'object' ? r.guion : null;
+      const variantes = Array.isArray(r?.variantes) ? r.variantes.filter(v => v && v.copy) : [];
+      if (r?.descripcion) setDescripcionImagen(r.descripcion);
+      if (guion || variantes.length) setIdeas({ guion, variantes });
+    } catch (err) {
+      console.error('Error analizando la imagen:', err);
+      setErrorImagen('No pude procesar la foto. Inténtalo de nuevo.');
+    } finally {
+      setAnalizandoImagen(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleApplySuggestion = async (newCopy) => {
     setCopy(newCopy);
     await db.updatePost(postId, { copy: newCopy, status: 'READY' });
@@ -260,6 +323,28 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
                 <SafeIcon name="Zap" className="w-4 h-4 mr-2" />
                 {ideas ? 'Dame otras ideas' : 'Dame ideas para este post'}
               </Button>
+            </Card>
+
+            {/* Foto → contenido: la IA lee la imagen real y propone contenido. */}
+            <Card className="p-5 space-y-3 border-primary/15 bg-primary/[0.02]">
+              <div>
+                <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <SafeIcon name="Camera" className="w-3.5 h-3.5 text-primary" /> ¿Tienes una foto? Conviértela en contenido
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Sube una foto real de tu producto, tu local o tu servicio. La leo y te propongo cómo describirla, un guion y varias versiones del texto.
+                </p>
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagenSeleccionada} />
+              <Button size="sm" variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()} isLoading={analizandoImagen}>
+                <SafeIcon name="Upload" className="w-3.5 h-3.5 mr-1.5" /> {analizandoImagen ? 'Leyendo tu foto…' : (imagenPreview ? 'Subir otra foto' : 'Subir una foto')}
+              </Button>
+              {errorImagen && <p className="text-[11px] text-red-500">{errorImagen}</p>}
+              {descripcionImagen && (
+                <div className="rounded-xl bg-white/70 border border-primary/10 p-3 text-[12px] text-gray-600 leading-relaxed">
+                  <span className="font-bold text-gray-700">Lo que veo en tu foto: </span>{descripcionImagen}
+                </div>
+              )}
             </Card>
 
             {/* Guion de producción: qué grabar / qué láminas / ideas visuales. */}
@@ -378,8 +463,8 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
 
           <div className="space-y-4 lg:sticky lg:top-4">
             <Card className="aspect-[4/5] bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-200 relative group overflow-hidden">
-              {post.image_url ? (
-                <img src={post.image_url} alt="Preview" className="w-full h-full object-cover" />
+              {(imagenPreview || post.image_url) ? (
+                <img src={imagenPreview || post.image_url} alt="Preview" className="w-full h-full object-cover" />
               ) : (
                 <div className="text-center p-8">
                   <SafeIcon name="Image" className="w-12 h-12 text-gray-300 mx-auto mb-4" />
