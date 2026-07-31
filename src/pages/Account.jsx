@@ -74,11 +74,19 @@ export default function Account() {
     setPayError('');
     setPayLoading('cancel');
     try {
-      await cancelarSuscripcion();
+      // Intentamos cancelar en Mercado Pago (si hay suscripción real), pero no
+      // dependemos de ello: el downgrade a FREE debe funcionar siempre, incluso
+      // en cuentas activadas manualmente o sin suscripción en MP.
+      try { await cancelarSuscripcion(); } catch (e) { console.warn('Cancelación en Mercado Pago no aplicable:', e?.message || e); }
+      const { error } = await supabase
+        .from('profiles')
+        .update({ plan: 'FREE', plan_status: 'inactive' })
+        .eq('id', user.id);
+      if (error) throw error;
       await refreshProfile?.();
-      setBanner({ tipo: 'pending', texto: 'Tu suscripción fue cancelada. Mantienes el acceso hasta el fin del período.' });
+      setBanner({ tipo: 'pending', texto: 'Tu plan volvió a Gratis. Puedes reactivar Mensual cuando quieras.' });
     } catch (err) {
-      setPayError(err.message || 'No se pudo cancelar la suscripción.');
+      setPayError(err.message || 'No se pudo cambiar el plan.');
     } finally {
       setPayLoading(null);
     }
@@ -200,7 +208,7 @@ export default function Account() {
                 isLoading={payLoading === 'cancel'}
                 onClick={handleCancelar}
               >
-                Cancelar suscripción
+                Cancelar y volver a plan Gratis
               </Button>
             </div>
           )}
