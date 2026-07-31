@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { generarTexto, generarJSON, generarJSONConImagen } from '../lib/ia';
+import { generarImagenPost, retocarImagen, subirImagenPost } from '../lib/imagenes';
 import { buildSystemPrompt } from '../lib/parrilla';
 import { Button, Card, Textarea, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
@@ -32,9 +33,12 @@ export default function Composer() {
   const [marcando, setMarcando] = useState(false);
   // Foto → contenido (visión de la IA).
   const [imagenPreview, setImagenPreview] = useState(null);
+  const [imagenBase64, setImagenBase64] = useState(null); // foto subida, para retocar
   const [descripcionImagen, setDescripcionImagen] = useState('');
   const [analizandoImagen, setAnalizandoImagen] = useState(false);
   const [errorImagen, setErrorImagen] = useState('');
+  const [generandoArte, setGenerandoArte] = useState(false); // 'generar' | 'retocar' | false
+  const [errorArte, setErrorArte] = useState('');
   const fileInputRef = useRef(null);
 
   const publicado = post?.status === 'PUBLISHED';
@@ -217,6 +221,7 @@ Conviértelo en un post: empieza con un gancho fiel al material, desarróllalo e
     try {
       const img = await fileToResizedBase64(file);
       setImagenPreview(img.dataUrl);
+      setImagenBase64(img.base64);
       const formato = post.formato || 'Reel';
       const system = buildSystemPrompt(bizConMemoria());
       const userText = `El dueño subió esta foto real de su negocio para convertirla en contenido (pilar "${post.pilar || 'general'}"${post.pilar_tipo ? `, tipo ${post.pilar_tipo}` : ''}, formato ${formato}, canal ${post.canal || 'Instagram'}).
@@ -236,6 +241,55 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     } finally {
       setAnalizandoImagen(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Guarda una imagen (base64) en Storage y la deja como imagen del post.
+  const persistirImagen = async (b64) => {
+    const url = await subirImagenPost(currentBusiness.id, post.id, b64);
+    await db.updatePost(post.id, { image_url: url });
+    setPost(p => ({ ...p, image_url: url }));
+    setImagenPreview(url);
+  };
+
+  // Prompt de marketing para el arte del post, atado al negocio (sin texto en la
+  // imagen: los modelos no rotulan bien y queremos una base limpia y editable).
+  const promptArte = () => {
+    const b = currentBusiness || {};
+    return `Imagen de marketing para redes sociales de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}). Idea del post: "${post.gancho || post.pilar || 'contenido de marca'}". ${descripcionImagen ? `Referencia visual real: ${descripcionImagen}. ` : ''}Estilo fotográfico limpio y atractivo, buena iluminación, composición para ${post.formato || 'Reel'}, colores acordes a la marca. Sin texto, sin letras, sin logos superpuestos.`;
+  };
+
+  // Genera el arte del post desde cero.
+  const handleGenerarArte = async () => {
+    if (generandoArte) return;
+    setGenerandoArte('generar');
+    setErrorArte('');
+    try {
+      const b64 = await generarImagenPost(promptArte());
+      await persistirImagen(b64);
+    } catch (e) {
+      console.error('Error generando arte:', e);
+      setErrorArte(e.message || 'No se pudo generar la imagen.');
+    } finally {
+      setGenerandoArte(false);
+    }
+  };
+
+  // Retoca/mejora la foto real que subió el usuario.
+  const handleRetocarFoto = async () => {
+    if (generandoArte || !imagenBase64) return;
+    setGenerandoArte('retocar');
+    setErrorArte('');
+    try {
+      const b = currentBusiness || {};
+      const prompt = `Mejora esta foto para publicarla en redes de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}): limpia y ordena el fondo, mejora la iluminación y el color, y hazla más vendible y profesional. Mantén el producto/escena FIEL a la realidad, sin agregar objetos ni texto. Resultado limpio y atractivo, composición para ${post.formato || 'Reel'}.`;
+      const b64 = await retocarImagen(prompt, imagenBase64);
+      await persistirImagen(b64);
+    } catch (e) {
+      console.error('Error retocando foto:', e);
+      setErrorArte(e.message || 'No se pudo retocar la foto.');
+    } finally {
+      setGenerandoArte(false);
     }
   };
 
@@ -514,17 +568,28 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 </div>
               )}
             </Card>
-            {/* Roadmap: generación de arte. Se muestra como aviso, no como botón falso. */}
-            <div className="rounded-2xl border border-primary/15 bg-primary/[0.03] p-3.5 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <SafeIcon name="Image" className="w-4.5 h-4.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[12px] font-bold text-gray-700">Generar el arte del post</p>
-                <p className="text-[11px] text-gray-400">Muy pronto podrás crear la imagen aquí mismo.</p>
-              </div>
-              <Badge variant="primary" className="ml-auto text-[9px] uppercase shrink-0">Pronto</Badge>
-            </div>
+            {/* Generar / retocar el arte del post con IA. */}
+            <Card className="p-4 space-y-2.5 border-primary/15">
+              <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                <SafeIcon name="Image" className="w-3.5 h-3.5 text-primary" /> El arte del post
+              </p>
+              <Button className="w-full" onClick={handleGenerarArte} isLoading={generandoArte === 'generar'} disabled={!!generandoArte}>
+                <SafeIcon name="Zap" className="w-4 h-4 mr-2" />
+                {generandoArte === 'generar' ? 'Creando imagen…' : (post.image_url ? 'Generar otra imagen' : 'Generar imagen con IA')}
+              </Button>
+              {imagenBase64 && (
+                <Button variant="outline" className="w-full" onClick={handleRetocarFoto} isLoading={generandoArte === 'retocar'} disabled={!!generandoArte}>
+                  <SafeIcon name="Feather" className="w-4 h-4 mr-2" />
+                  {generandoArte === 'retocar' ? 'Mejorando tu foto…' : 'Retocar y mejorar mi foto'}
+                </Button>
+              )}
+              {errorArte && <p className="text-[11px] text-red-500">{errorArte}</p>}
+              <p className="text-[10px] text-gray-400 leading-snug">
+                {imagenBase64
+                  ? 'Genera una imagen desde cero o mejora la foto que subiste. La imagen se guarda en el post.'
+                  : 'Crea la imagen desde la idea del post. Si subes una foto arriba, también podrás retocarla.'}
+              </p>
+            </Card>
           </div>
         </div>
       </div>
