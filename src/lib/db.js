@@ -219,6 +219,21 @@ export const db = {
     return data || [];
   },
 
+  // Descuenta 1 crédito por imagen (FREE) o confirma acceso ilimitado (MENSUAL).
+  // Lanza error si el usuario FREE se quedó sin créditos.
+  async consumirCreditoImagen() {
+    const { data, error } = await supabase.rpc('consumir_credito_imagen');
+    if (error) throw new Error(error.message || 'No se pudo verificar tus créditos.');
+    return data;
+  },
+
+  // Reembolsa 1 crédito (FREE) si la generación falló tras el descuento.
+  async reponerCreditoImagen() {
+    const { data, error } = await supabase.rpc('reponer_credito_imagen');
+    if (error) throw new Error(error.message || 'No se pudo reponer el crédito.');
+    return data;
+  },
+
   async adminSetPromoActive(codeId, active) {
     const { data, error } = await supabase.rpc('admin_set_promo_active', { p_code_id: codeId, p_active: active });
     if (error) throw new Error(error.message || 'No se pudo actualizar el código.');

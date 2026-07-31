@@ -15,7 +15,7 @@ import WizardAgent from '../components/WizardAgent';
 
 export default function Composer() {
   const { postId } = useParams();
-  const { currentBusiness } = useAuth();
+  const { currentBusiness, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +39,7 @@ export default function Composer() {
   const [errorImagen, setErrorImagen] = useState('');
   const [generandoArte, setGenerandoArte] = useState(false); // 'generar' | 'retocar' | false
   const [errorArte, setErrorArte] = useState('');
+  const [sinCreditos, setSinCreditos] = useState(false);
   const fileInputRef = useRef(null);
 
   const publicado = post?.status === 'PUBLISHED';
@@ -259,17 +260,45 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     return `Imagen de marketing para redes sociales de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}). Idea del post: "${post.gancho || post.pilar || 'contenido de marca'}". ${descripcionImagen ? `Referencia visual real: ${descripcionImagen}. ` : ''}Estilo fotográfico limpio y atractivo, buena iluminación, composición para ${post.formato || 'Reel'}, colores acordes a la marca. Sin texto, sin letras, sin logos superpuestos.`;
   };
 
+  // Ejecuta una acción de imagen gastando 1 crédito (FREE) por adelantado y
+  // reembolsándolo si la acción falla. MENSUAL no gasta crédito.
+  const conCredito = async (accion) => {
+    const res = await db.consumirCreditoImagen(); // lanza si FREE sin créditos
+    const consumido = res?.ilimitado === false;
+    try {
+      await accion();
+    } catch (e) {
+      if (consumido) { try { await db.reponerCreditoImagen(); } catch (_) { /* best-effort */ } }
+      throw e;
+    } finally {
+      refreshProfile?.();
+    }
+  };
+
+  // Traduce errores de imagen a un mensaje claro y marca la falta de créditos.
+  const manejarErrorArte = (e, fallback) => {
+    console.error(fallback, e);
+    if ((e?.message || '').toLowerCase().includes('sin créditos')) {
+      setSinCreditos(true);
+      setErrorArte('Te quedaste sin créditos para generar imágenes.');
+    } else {
+      setErrorArte(e?.message || fallback);
+    }
+  };
+
   // Genera el arte del post desde cero.
   const handleGenerarArte = async () => {
     if (generandoArte) return;
     setGenerandoArte('generar');
     setErrorArte('');
+    setSinCreditos(false);
     try {
-      const b64 = await generarImagenPost(promptArte());
-      await persistirImagen(b64);
+      await conCredito(async () => {
+        const b64 = await generarImagenPost(promptArte());
+        await persistirImagen(b64);
+      });
     } catch (e) {
-      console.error('Error generando arte:', e);
-      setErrorArte(e.message || 'No se pudo generar la imagen.');
+      manejarErrorArte(e, 'No se pudo generar la imagen.');
     } finally {
       setGenerandoArte(false);
     }
@@ -280,14 +309,16 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     if (generandoArte || !imagenBase64) return;
     setGenerandoArte('retocar');
     setErrorArte('');
+    setSinCreditos(false);
     try {
-      const b = currentBusiness || {};
-      const prompt = `Mejora esta foto para publicarla en redes de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}): limpia y ordena el fondo, mejora la iluminación y el color, y hazla más vendible y profesional. Mantén el producto/escena FIEL a la realidad, sin agregar objetos ni texto. Resultado limpio y atractivo, composición para ${post.formato || 'Reel'}.`;
-      const b64 = await retocarImagen(prompt, imagenBase64);
-      await persistirImagen(b64);
+      await conCredito(async () => {
+        const b = currentBusiness || {};
+        const prompt = `Mejora esta foto para publicarla en redes de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}): limpia y ordena el fondo, mejora la iluminación y el color, y hazla más vendible y profesional. Mantén el producto/escena FIEL a la realidad, sin agregar objetos ni texto. Resultado limpio y atractivo, composición para ${post.formato || 'Reel'}.`;
+        const b64 = await retocarImagen(prompt, imagenBase64);
+        await persistirImagen(b64);
+      });
     } catch (e) {
-      console.error('Error retocando foto:', e);
-      setErrorArte(e.message || 'No se pudo retocar la foto.');
+      manejarErrorArte(e, 'No se pudo retocar la foto.');
     } finally {
       setGenerandoArte(false);
     }
@@ -584,10 +615,15 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 </Button>
               )}
               {errorArte && <p className="text-[11px] text-red-500">{errorArte}</p>}
+              {sinCreditos && (
+                <Button size="sm" variant="outline" className="w-full" onClick={() => navigate('/cuenta')}>
+                  <SafeIcon name="Zap" className="w-3.5 h-3.5 mr-1.5" /> Conseguir más créditos
+                </Button>
+              )}
               <p className="text-[10px] text-gray-400 leading-snug">
-                {imagenBase64
-                  ? 'Genera una imagen desde cero o mejora la foto que subiste. La imagen se guarda en el post.'
-                  : 'Crea la imagen desde la idea del post. Si subes una foto arriba, también podrás retocarla.'}
+                {profile?.plan === 'MENSUAL'
+                  ? 'Tu plan Mensual incluye imágenes ilimitadas.'
+                  : `Cada imagen usa 1 crédito. Te quedan ${profile?.credits ?? 0}.`}
               </p>
             </Card>
           </div>
