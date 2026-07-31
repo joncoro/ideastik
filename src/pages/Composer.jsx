@@ -239,6 +239,39 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     }
   };
 
+  // Convierte la foto (subida o guardada) en un File para adjuntarla al compartir.
+  const imagenComoFile = async () => {
+    const src = imagenPreview || post?.image_url;
+    if (!src) return null;
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      return new File([blob], 'ideastik.jpg', { type: blob.type || 'image/jpeg' });
+    } catch { return null; }
+  };
+
+  // Comparte el post por WhatsApp. En móvil usa la Web Share API (texto + foto);
+  // en escritorio abre WhatsApp Web con el texto listo. No necesita API de Meta.
+  const handleCompartirWhatsApp = async () => {
+    const texto = (copy || post?.gancho || '').trim();
+    if (!texto) return;
+    try {
+      const file = await imagenComoFile();
+      if (navigator.share && file && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ text: texto, files: [file] });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({ text: texto });
+        return;
+      }
+    } catch (e) {
+      if (e?.name === 'AbortError') return; // el usuario canceló el diálogo
+      // cualquier otro error: caemos al enlace de WhatsApp
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
+  };
+
   const handleApplySuggestion = async (newCopy) => {
     setCopy(newCopy);
     await db.updatePost(postId, { copy: newCopy, status: 'READY' });
@@ -436,6 +469,14 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 placeholder="Elige una versión de arriba o escribe la tuya aquí..."
               />
             </Card>
+
+            {/* Compartir: manda el texto (y la foto en móvil) directo a WhatsApp. */}
+            <Button variant="success" className="w-full" onClick={handleCompartirWhatsApp} disabled={!copy && !post.gancho}>
+              <SafeIcon name="MessageCircle" className="w-4 h-4 mr-2" /> Compartir por WhatsApp
+            </Button>
+            <p className="text-[11px] text-gray-400 -mt-3 text-center">
+              En el celular se abre WhatsApp con el texto {(imagenPreview || post.image_url) ? 'y la foto ' : ''}listos para enviar a un cliente o a tu estado.
+            </p>
 
             <Card className="p-4">
               <p className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-1.5">
