@@ -7,7 +7,7 @@ import BusinessSwitcher from './BusinessSwitcher';
 import NotificationCenter from './NotificationCenter';
 
 export default function Layout() {
-  const { user, currentBusiness, logout } = useAuth();
+  const { user, profile, currentBusiness, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -21,6 +21,8 @@ export default function Layout() {
     { name: 'Negocios', path: `/negocios`, icon: 'Grid' },
     { name: 'Ajustes', path: `/n/${currentBusiness?.id}/ajustes`, icon: 'Sliders' },
     { name: 'Cuenta', path: `/cuenta`, icon: 'User' },
+    // Solo administradores designados ven esta entrada.
+    ...(profile?.is_admin ? [{ name: 'Admin', path: `/admin`, icon: 'Shield' }] : []),
   ];
 
   return (

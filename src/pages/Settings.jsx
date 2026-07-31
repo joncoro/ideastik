@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import supabase from '../supabase/supabase';
@@ -56,6 +56,17 @@ export default function Settings() {
     palabras_propias: '', palabras_prohibidas: ''
   });
   const [pilaresEdit, setPilaresEdit] = useState([]);
+  const [flashPilar, setFlashPilar] = useState(null);
+  const flashPilarRef = useRef(null);
+
+  // Al añadir un pilar, lleva el foco a la fila nueva y la resalta (si no, parece que "no pasa nada").
+  useEffect(() => {
+    if (flashPilar == null || !flashPilarRef.current) return;
+    flashPilarRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    flashPilarRef.current.querySelector('input')?.focus();
+    const t = setTimeout(() => setFlashPilar(null), 1600);
+    return () => clearTimeout(t);
+  }, [flashPilar]);
 
   const [reminderSettings, setReminderSettings] = useState({
     enabled: true,
@@ -208,7 +219,10 @@ export default function Settings() {
 
   const updatePilar = (i, field, val) => setPilaresEdit(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p));
   const removePilar = (i) => setPilaresEdit(prev => prev.filter((_, idx) => idx !== i));
-  const addPilar = () => setPilaresEdit(prev => [...prev, { tipo: 'autoridad', nombre: '', desc: '' }]);
+  const addPilar = () => {
+    setFlashPilar(pilaresEdit.length);
+    setPilaresEdit(prev => [...prev, { tipo: 'autoridad', nombre: '', desc: '' }]);
+  };
 
   const tab = (id, label) => (
     <button
@@ -391,7 +405,14 @@ export default function Settings() {
             {pilaresEdit.length === 0 && <p className="text-xs text-gray-400 italic">No hay pilares aún. Añade uno o créalos en el wizard.</p>}
             <div className="space-y-3">
               {pilaresEdit.map((p, i) => (
-                <div key={i} className="rounded-2xl border border-white/70 bg-white/50 p-3 space-y-2">
+                <div
+                  key={i}
+                  ref={i === flashPilar ? flashPilarRef : undefined}
+                  className={cn(
+                    "rounded-2xl border p-3 space-y-2 transition-all duration-500",
+                    i === flashPilar ? "border-primary/60 bg-primary/5 ring-2 ring-primary/30" : "border-white/70 bg-white/50"
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     <select
                       value={p.tipo}
