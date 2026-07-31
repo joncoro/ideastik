@@ -11,7 +11,7 @@ import { Button, Input, Card, Badge } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isBefore, startOfDay, isSameMonth, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { WIZARD_PHASES, getNextPhase } from '../lib/wizardMachine';
 import { buildSystemPrompt, buildIdeasPrompt, mapIdeasToPosts } from '../lib/parrilla';
@@ -97,6 +97,8 @@ export default function ChatWizard() {
   // Cuando el agente pide aclarar una respuesta vaga, guardamos la fase y la
   // respuesta parcial; el siguiente mensaje del usuario se combina con ella.
   const [clarificando, setClarificando] = useState(null);
+  // Pila de fases de datos ya respondidas, para poder "Volver" y corregir.
+  const [faseHistory, setFaseHistory] = useState([]);
 
   // El system prompt vive en lib/parrilla.js (compartido con el Calendario).
   const getSystemPrompt = buildSystemPrompt;
@@ -388,8 +390,28 @@ export default function ChatWizard() {
       navigate(`/n/${activeBiz.id}/calendario`);
       return;
     }
+    // Guardamos la fase respondida (solo las de datos) para poder volver a corregir.
+    if (currentFase.startsWith('DATOS')) setFaseHistory(h => [...h, currentFase]);
     setCurrentFase(nextFase);
     startPhase(nextFase, activeBiz);
+  };
+
+  // Vuelve al paso de datos anterior para corregir una respuesta ya enviada.
+  const handleVolver = async () => {
+    if (faseHistory.length === 0 || isTyping) return;
+    const prev = faseHistory[faseHistory.length - 1];
+    setFaseHistory(h => h.slice(0, -1));
+    setClarificando(null);
+    setAjustePendiente(null);
+    setMessages(m => [...m, { id: 'u-' + Date.now(), role: 'user', content: '↩ Quiero corregir el paso anterior' }]);
+    let biz = businessData;
+    if (biz?.id) {
+      await db.updateBusiness(biz.id, { current_fase: prev });
+      biz = { ...biz, current_fase: prev };
+      setBusinessData(biz);
+    }
+    setCurrentFase(prev);
+    startPhase(prev, biz, null, true);
   };
 
   const handleContactoSave = async (fields) => {
@@ -630,15 +652,52 @@ export default function ChatWizard() {
   };
 
   const DayPickerWidget = ({ onSelect, disabled }) => {
-    const days = eachDayOfInterval({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) });
+    const hoy = startOfDay(new Date());
+    // El mes que se muestra. Si hoy es el último día del mes, arranca en el siguiente
+    // (no tendría sentido mostrar un mes sin días futuros).
+    const inicial = isSameMonth(hoy, endOfMonth(hoy)) && hoy.getDate() === endOfMonth(hoy).getDate()
+      ? addMonths(hoy, 1) : hoy;
+    const [viewMonth, setViewMonth] = useState(startOfMonth(inicial));
+    const days = eachDayOfInterval({ start: startOfMonth(viewMonth), end: endOfMonth(viewMonth) });
+    // Relleno para alinear el día 1 con su día de la semana (lunes = primera columna).
+    const offset = (getDay(startOfMonth(viewMonth)) + 6) % 7;
+    const puedeRetroceder = !isSameMonth(viewMonth, hoy) && isBefore(hoy, viewMonth);
+    const puedeAvanzar = isBefore(viewMonth, startOfMonth(addMonths(hoy, 2))); // hasta 2 meses adelante
+
     return (
       <div className={cn("mt-4 bg-white rounded-2xl border p-4 shadow-sm", disabled && "opacity-60")}>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map(day => (
-            <button key={day.toString()} disabled={disabled} onClick={() => onSelect(`Empezar el ${format(day, "d 'de' MMMM", { locale: es })}`, day.toISOString())} className="h-8 w-8 rounded-lg text-xs flex items-center justify-center hover:bg-primary/10">
-              {format(day, 'd')}
-            </button>
+        <div className="flex items-center justify-between mb-3">
+          <button disabled={disabled || !puedeRetroceder} onClick={() => setViewMonth(m => startOfMonth(addMonths(m, -1)))} className={cn("w-7 h-7 rounded-lg flex items-center justify-center", puedeRetroceder && !disabled ? "text-primary hover:bg-primary/10" : "text-gray-200")}>
+            <SafeIcon name="ChevronLeft" className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-heading font-bold capitalize text-gray-800">{format(viewMonth, 'MMMM yyyy', { locale: es })}</span>
+          <button disabled={disabled || !puedeAvanzar} onClick={() => setViewMonth(m => startOfMonth(addMonths(m, 1)))} className={cn("w-7 h-7 rounded-lg flex items-center justify-center", puedeAvanzar && !disabled ? "text-primary hover:bg-primary/10" : "text-gray-200")}>
+            <SafeIcon name="ChevronRight" className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => (
+            <div key={i} className="h-6 text-[10px] font-bold text-gray-300 flex items-center justify-center">{d}</div>
           ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: offset }).map((_, i) => <div key={'e' + i} className="h-8 w-8" />)}
+          {days.map(day => {
+            const pasado = isBefore(day, hoy);
+            return (
+              <button
+                key={day.toString()}
+                disabled={disabled || pasado}
+                onClick={() => onSelect(`Empezar el ${format(day, "d 'de' MMMM", { locale: es })}`, day.toISOString())}
+                className={cn(
+                  "h-8 w-8 rounded-lg text-xs flex items-center justify-center transition-colors",
+                  pasado ? "text-gray-200 cursor-not-allowed line-through" : "text-gray-700 hover:bg-primary hover:text-white"
+                )}
+              >
+                {format(day, 'd')}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -915,10 +974,18 @@ export default function ChatWizard() {
         {isTyping && <div className="flex gap-1 p-3 bg-white rounded-2xl w-fit shadow-sm border border-gray-100"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} /></div>}
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white/80 via-white/40 to-transparent backdrop-blur-sm">
-        <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue, undefined, true); setInputValue(''); } }} className="flex gap-2 items-center max-w-2xl mx-auto">
-          <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
-          <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
-        </form>
+        <div className="max-w-2xl mx-auto">
+          {/* Corregir: vuelve al paso de datos anterior para reescribir la respuesta. */}
+          {faseHistory.length > 0 && currentFase.startsWith('DATOS') && !isTyping && !clarificando && !ajustePendiente && (
+            <button onClick={handleVolver} className="mb-2 ml-1 text-[12px] text-gray-400 hover:text-primary flex items-center gap-1 transition-colors">
+              <SafeIcon name="CornerUpLeft" className="w-3.5 h-3.5" /> Corregir el paso anterior
+            </button>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) { handleSelection(inputValue, undefined, true); setInputValue(''); } }} className="flex gap-2 items-center">
+            <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Escribe aquí..." className="rounded-full bg-white border-gray-200 h-12 shadow-sm" disabled={isTyping} />
+            <Button type="submit" size="icon" className="rounded-full w-12 h-12 shadow-md shadow-primary/20" disabled={!inputValue.trim() || isTyping}><SafeIcon name="ArrowUp" className="w-5 h-5" /></Button>
+          </form>
+        </div>
       </div>
       </div>
     </div>

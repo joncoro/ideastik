@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { useNavigate, useParams } from 'react-router-dom';
-import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday } from 'date-fns';
+import { format, startOfWeek, addDays, startOfMonth, endOfMonth, endOfWeek, isSameMonth, isSameDay, isToday, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button, Skeleton, Card } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
@@ -338,7 +338,19 @@ export default function CalendarHub() {
         </Card>
       )}
       <div className="flex items-center justify-between mb-6 md:mb-8">
-        <h2 className="text-xl md:text-2xl font-heading font-bold capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
+        <div className="flex items-center gap-1.5 md:gap-3">
+          {/* Navegación de meses: permite planear meses siguientes (Mensual). */}
+          <button onClick={() => setCurrentDate(d => subMonths(d, 1))} title="Mes anterior" className="w-8 h-8 rounded-xl border border-white/70 bg-white/50 text-gray-500 hover:text-primary hover:border-primary/30 flex items-center justify-center transition-colors">
+            <SafeIcon name="ChevronLeft" className="w-4 h-4" />
+          </button>
+          <h2 className="text-xl md:text-2xl font-heading font-bold capitalize min-w-[9.5rem] md:min-w-[11rem] text-center">{format(currentDate, 'MMMM yyyy', { locale: es })}</h2>
+          <button onClick={() => setCurrentDate(d => addMonths(d, 1))} title="Mes siguiente" className="w-8 h-8 rounded-xl border border-white/70 bg-white/50 text-gray-500 hover:text-primary hover:border-primary/30 flex items-center justify-center transition-colors">
+            <SafeIcon name="ChevronRight" className="w-4 h-4" />
+          </button>
+          {!isSameMonth(currentDate, new Date()) && (
+            <button onClick={() => setCurrentDate(new Date())} className="text-[11px] text-primary font-medium hover:underline ml-1">Hoy</button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => openEvento(currentDate)}>
             <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial

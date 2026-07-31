@@ -5,12 +5,14 @@ import { Card, Badge } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
 import UpsellModal from '../components/UpsellModal';
-import { puedeCrearNegocio, esMensual } from '../lib/plan';
+import { puedeCrearNegocio, esMensual, limitesDe } from '../lib/plan';
 
 export default function Negocios() {
   const { allBusinesses, switchBusiness, currentBusiness, profile } = useAuth();
   const navigate = useNavigate();
   const [upsell, setUpsell] = useState(false);
+  const topeMensual = limitesDe({ plan: 'MENSUAL' }).negocios;
+  const enTope = esMensual(profile) && !puedeCrearNegocio(profile, allBusinesses.length);
   const intentarCrear = () => {
     if (puedeCrearNegocio(profile, allBusinesses.length)) navigate('/empezar');
     else setUpsell(true);
@@ -27,10 +29,14 @@ export default function Negocios() {
       <div>
         <h2 className="text-2xl md:text-3xl font-heading font-bold mb-1">Mis negocios</h2>
         <p className="text-gray-500 text-sm">Elige un negocio para ver su parrilla, o crea uno nuevo.</p>
-        {!esMensual(profile) && (
+        {!esMensual(profile) ? (
           <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
             <SafeIcon name="Info" className="w-3 h-3" /> Plan gratis: {allBusinesses.length}/1 negocio.
             <button onClick={() => navigate('/cuenta')} className="text-primary font-medium hover:underline">Mejorar</button>
+          </p>
+        ) : (
+          <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+            <SafeIcon name="Info" className="w-3 h-3" /> Plan Mensual: {allBusinesses.length}/{topeMensual} negocios.
           </p>
         )}
       </div>
@@ -80,8 +86,11 @@ export default function Negocios() {
       <UpsellModal
         open={upsell}
         onClose={() => setUpsell(false)}
-        titulo="Vas genial con tu primer negocio"
-        mensaje="El plan gratis incluye 1 negocio. Mejora a Mensual para crear negocios ilimitados y planear varios meses."
+        soloInfo={enTope}
+        titulo={enTope ? 'Alcanzaste el máximo de tu plan' : 'Vas genial con tu primer negocio'}
+        mensaje={enTope
+          ? `El plan Mensual permite hasta ${topeMensual} negocios. Si necesitas más, escríbenos.`
+          : `El plan gratis incluye 1 negocio. Mejora a Mensual para crear hasta ${topeMensual} negocios y planear todos los meses que quieras.`}
       />
     </div>
   );
