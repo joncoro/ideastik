@@ -289,13 +289,13 @@ export default function CalendarHub() {
       return (
         <Card className="flex flex-col items-center justify-center p-8 md:p-12 text-center bg-white border-dashed border-2 border-gray-200">
           <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-6">
-            <SafeIcon name="Sparkles" className="w-10 h-10 opacity-50" />
+            <SafeIcon name="Zap" className="w-10 h-10 opacity-50" />
           </div>
           <h3 className="text-xl font-heading font-bold text-gray-900 mb-2 capitalize">Tu parrilla de {mesLabel} está vacía</h3>
           <p className="text-gray-500 max-w-sm mb-2">Ya tienes tu estrategia lista. Genero un nuevo mes de ideas basadas en tus pilares y canales, sin repetir el cuestionario.</p>
           {errorMes && <p className="text-sm text-red-500 mb-3">{errorMes}</p>}
           <Button size="lg" onClick={handleGenerarMes} isLoading={generandoMes} className="px-8 shadow-xl shadow-primary/20 mt-4">
-            <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> {generandoMes ? 'Generando ideas...' : `Generar parrilla de ${mesLabel}`}
+            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> {generandoMes ? 'Generando ideas...' : `Generar parrilla de ${mesLabel}`}
           </Button>
           <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-xs text-gray-400 hover:text-primary mt-4 flex items-center gap-1">
             <SafeIcon name="Sliders" className="w-3 h-3" /> Revisar o ajustar mi estrategia antes
@@ -356,7 +356,7 @@ export default function CalendarHub() {
             <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial
           </Button>
           <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
-            <SafeIcon name="Sparkles" className="w-4 h-4 mr-2" /> Ideas IA
+            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Ideas IA
           </Button>
         </div>
       </div>

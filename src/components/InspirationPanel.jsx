@@ -88,7 +88,7 @@ export default function InspirationPanel({ isOpen, onClose, onIdeaSelected }) {
             <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-primary/5">
               <div>
                 <h3 className="font-heading font-bold text-xl flex items-center gap-2">
-                  <SafeIcon name="Sparkles" className="text-primary w-5 h-5" />
+                  <SafeIcon name="Zap" className="text-primary w-5 h-5" />
                   Inspiración AI
                 </h3>
                 <p className="text-xs text-gray-500">Ideas frescas basadas en tus pilares</p>

@@ -101,12 +101,12 @@ export default function NotificationCenter() {
       <AnimatePresence>
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-            <motion.div 
-              initial={{ opacity: 0, y: 10, scale: 0.95 }} 
-              animate={{ opacity: 1, y: 0, scale: 1 }} 
+            <div className="fixed inset-0 z-[120]" onClick={() => setIsOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden"
+              className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-2xl shadow-2xl z-[130] overflow-hidden"
             >
               <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                 <h3 className="font-heading font-bold text-sm">Notificaciones</h3>

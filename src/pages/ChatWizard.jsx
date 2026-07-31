@@ -867,7 +867,7 @@ export default function ChatWizard() {
         <div className="absolute top-1/2 right-16 w-16 h-16 rounded-full border border-white/20" />
         {/* Glass card flotante */}
         <div className="absolute top-20 right-10 hidden xl:flex flex-col gap-2 p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 w-52 rotate-3">
-          <div className="w-8 h-8 rounded-lg bg-white/25 flex items-center justify-center"><SafeIcon name="Sparkles" className="w-4 h-4 text-white" /></div>
+          <div className="w-8 h-8 rounded-lg bg-white/25 flex items-center justify-center"><SafeIcon name="Zap" className="w-4 h-4 text-white" /></div>
           <div className="h-2 w-3/4 rounded-full bg-white/30" />
           <div className="h-2 w-1/2 rounded-full bg-white/20" />
         </div>
