@@ -148,5 +148,55 @@ export const db = {
       .limit(limit);
     if (error) throw error;
     return data || [];
+  },
+
+  // Opiniones del usuario. Dejar al menos una opinión es requisito para canjear
+  // un código de regalo (ver redeemPromoCode). El admin ve los conteos en su panel.
+  async enviarOpinion(userId, { message, rating = null, category = 'general', page = null, businessId = null }) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert([{ user_id: userId, message, rating, category, page, business_id: businessId }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async miOpinionCount(userId) {
+    const { count, error } = await supabase
+      .from('feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (error) throw error;
+    return count || 0;
+  },
+
+  // Canjear un código de regalo. El servidor exige haber dejado ≥1 opinión y
+  // suma los créditos de forma atómica. Devuelve { credits_added, new_balance }.
+  async redeemPromoCode(code) {
+    const { data, error } = await supabase.rpc('redeem_promo_code', { p_code: code });
+    if (error) throw new Error(error.message || 'No se pudo canjear el código.');
+    return data;
+  },
+
+  // --- Admin: gestión de códigos de regalo (todas validan is_admin en el servidor) ---
+  async adminCreatePromoCodes({ credits, count = 1, note = null, expiresAt = null, maxRedemptions = 1 }) {
+    const { data, error } = await supabase.rpc('admin_create_promo_codes', {
+      p_credits: credits, p_count: count, p_note: note, p_expires_at: expiresAt, p_max_redemptions: maxRedemptions,
+    });
+    if (error) throw new Error(error.message || 'No se pudieron crear los códigos.');
+    return data;
+  },
+
+  async adminListPromoCodes() {
+    const { data, error } = await supabase.rpc('admin_list_promo_codes');
+    if (error) throw new Error(error.message || 'No se pudieron cargar los códigos.');
+    return data || [];
+  },
+
+  async adminSetPromoActive(codeId, active) {
+    const { data, error } = await supabase.rpc('admin_set_promo_active', { p_code_id: codeId, p_active: active });
+    if (error) throw new Error(error.message || 'No se pudo actualizar el código.');
+    return data;
   }
 };
