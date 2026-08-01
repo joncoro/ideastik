@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
       form.append("model", "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", size);
+      form.append("output_format", "jpeg"); // Instagram solo acepta JPEG
       form.append("image", new File([bytes], "foto.jpg", { type: "image/jpeg" }));
       resp = await fetch("https://api.openai.com/v1/images/edits", {
         method: "POST",
@@ -43,7 +44,7 @@ Deno.serve(async (req) => {
       resp = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "gpt-image-1", prompt, size, n: 1 }),
+        body: JSON.stringify({ model: "gpt-image-1", prompt, size, n: 1, output_format: "jpeg" }),
       });
     }
 

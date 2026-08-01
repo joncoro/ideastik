@@ -222,7 +222,13 @@ export const db = {
   // Publica directo en Instagram vía la Edge Function (usa el token de secreto).
   async publicarInstagram(imageUrl, caption) {
     const { data, error } = await supabase.functions.invoke('publicar-instagram', { body: { imageUrl, caption } });
-    if (error) throw new Error(error.message || 'No se pudo publicar en Instagram.');
+    if (error) {
+      // Cuando la función responde con un código de error, el mensaje real
+      // (el de Meta) viene en el cuerpo; lo extraemos en vez de mostrar el genérico.
+      let msg = error.message;
+      try { const body = await error.context?.json?.(); if (body?.error) msg = body.error; } catch (_) { /* noop */ }
+      throw new Error(msg || 'No se pudo publicar en Instagram.');
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   },
