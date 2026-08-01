@@ -40,6 +40,7 @@ export default function Composer() {
   const [generandoArte, setGenerandoArte] = useState(false); // 'generar' | 'retocar' | false
   const [errorArte, setErrorArte] = useState('');
   const [sinCreditos, setSinCreditos] = useState(false);
+  const [instruccionArte, setInstruccionArte] = useState(''); // ajustes que pide el usuario
   const fileInputRef = useRef(null);
 
   const publicado = post?.status === 'PUBLISHED';
@@ -253,11 +254,36 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     setImagenPreview(url);
   };
 
-  // Prompt de marketing para el arte del post, atado al negocio (sin texto en la
-  // imagen: los modelos no rotulan bien y queremos una base limpia y editable).
-  const promptArte = () => {
+  // Prompt de arte ANCLADO al contenido real del post (gancho + texto) para que
+  // la imagen sí tenga que ver con la publicación. Incluye la instrucción del
+  // usuario con prioridad. Sin texto en la imagen (los modelos no rotulan bien).
+  const promptArte = (instruccion = '') => {
     const b = currentBusiness || {};
-    return `Imagen de marketing para redes sociales de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}). Idea del post: "${post.gancho || post.pilar || 'contenido de marca'}". ${descripcionImagen ? `Referencia visual real: ${descripcionImagen}. ` : ''}Estilo fotográfico limpio y atractivo, buena iluminación, composición para ${post.formato || 'Reel'}, colores acordes a la marca. Sin texto, sin letras, sin logos superpuestos.`;
+    const texto = (copy || '').trim().slice(0, 500);
+    return [
+      `Crea una imagen realista para una publicación en redes de "${b.nombre || 'un negocio'}"${b.sector ? ` (${b.sector})` : ''}.`,
+      post.gancho ? `Tema del post: "${post.gancho}".` : '',
+      texto ? `El post dice: "${texto}". La imagen debe ILUSTRAR ese mensaje de forma concreta (muestra el producto, la escena o la situación de la que habla), no algo genérico.` : `Idea: "${post.pilar || 'contenido de marca'}".`,
+      descripcionImagen ? `Referencia visual real del negocio: ${descripcionImagen}.` : '',
+      instruccion ? `INSTRUCCIONES DEL DUEÑO (máxima prioridad, respétalas): ${instruccion}.` : '',
+      `Estilo fotográfico atractivo y vendible, buena iluminación, composición apta para ${post.formato || 'Reel'}. Sin texto, sin letras, sin logos superpuestos.`,
+    ].filter(Boolean).join(' ');
+  };
+
+  // Base64 de la imagen que se está mostrando (foto subida o arte ya generado),
+  // para poder EDITARLA/ajustarla. Funciona con data: URL y con URL de Storage.
+  const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => resolve(String(r.result).split(',')[1]);
+    r.readAsDataURL(blob);
+  });
+  const imagenActualBase64 = async () => {
+    const src = imagenPreview || post?.image_url;
+    if (!src) return null;
+    const res = await fetch(src);
+    const blob = await res.blob();
+    return await blobToBase64(blob);
   };
 
   // Ejecuta una acción de imagen gastando 1 crédito (FREE) por adelantado y
@@ -286,7 +312,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     }
   };
 
-  // Genera el arte del post desde cero.
+  // Genera el arte del post desde cero (usando el texto del post + tu instrucción).
   const handleGenerarArte = async () => {
     if (generandoArte) return;
     setGenerandoArte('generar');
@@ -294,7 +320,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     setSinCreditos(false);
     try {
       await conCredito(async () => {
-        const b64 = await generarImagenPost(promptArte());
+        const b64 = await generarImagenPost(promptArte(instruccionArte.trim()));
         await persistirImagen(b64);
       });
     } catch (e) {
@@ -304,21 +330,27 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     }
   };
 
-  // Retoca/mejora la foto real que subió el usuario.
-  const handleRetocarFoto = async () => {
-    if (generandoArte || !imagenBase64) return;
-    setGenerandoArte('retocar');
+  // Ajusta/edita la imagen que ya está (foto subida o arte generado) según lo que
+  // escriba el usuario; si no escribe nada, mejora la foto para redes.
+  const handleAjustarImagen = async () => {
+    if (generandoArte) return;
+    setGenerandoArte('ajustar');
     setErrorArte('');
     setSinCreditos(false);
     try {
+      const base64 = await imagenActualBase64();
+      if (!base64) { setErrorArte('Primero genera o sube una imagen para poder ajustarla.'); return; }
       await conCredito(async () => {
+        const instr = instruccionArte.trim();
         const b = currentBusiness || {};
-        const prompt = `Mejora esta foto para publicarla en redes de "${b.nombre || 'un negocio'}" (${b.sector || 'general'}): limpia y ordena el fondo, mejora la iluminación y el color, y hazla más vendible y profesional. Mantén el producto/escena FIEL a la realidad, sin agregar objetos ni texto. Resultado limpio y atractivo, composición para ${post.formato || 'Reel'}.`;
-        const b64 = await retocarImagen(prompt, imagenBase64);
+        const prompt = instr
+          ? `Edita esta imagen según estas instrucciones, manteniendo lo demás: ${instr}. Estilo realista y vendible para redes, sin texto ni logos.`
+          : `Mejora esta imagen para publicarla en redes de "${b.nombre || 'un negocio'}": ordena el fondo, mejora luz y color, hazla más vendible. Mantén el producto/escena FIEL a la realidad, sin agregar objetos ni texto.`;
+        const b64 = await retocarImagen(prompt, base64);
         await persistirImagen(b64);
       });
     } catch (e) {
-      manejarErrorArte(e, 'No se pudo retocar la foto.');
+      manejarErrorArte(e, 'No se pudo ajustar la imagen.');
     } finally {
       setGenerandoArte(false);
     }
@@ -599,19 +631,25 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 </div>
               )}
             </Card>
-            {/* Generar / retocar el arte del post con IA. */}
+            {/* Generar / ajustar el arte del post con IA. */}
             <Card className="p-4 space-y-2.5 border-primary/15">
               <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                 <SafeIcon name="Image" className="w-3.5 h-3.5 text-primary" /> El arte del post
               </p>
+              <Textarea
+                value={instruccionArte}
+                onChange={e => setInstruccionArte(e.target.value)}
+                className="min-h-[64px] text-sm bg-white"
+                placeholder="¿Cómo quieres la imagen? Ej. 'mi pan sobre una mesa de madera con luz cálida'. Déjalo vacío y la creo según tu post."
+              />
               <Button className="w-full" onClick={handleGenerarArte} isLoading={generandoArte === 'generar'} disabled={!!generandoArte}>
                 <SafeIcon name="Zap" className="w-4 h-4 mr-2" />
                 {generandoArte === 'generar' ? 'Creando imagen…' : (post.image_url ? 'Generar otra imagen' : 'Generar imagen con IA')}
               </Button>
-              {imagenBase64 && (
-                <Button variant="outline" className="w-full" onClick={handleRetocarFoto} isLoading={generandoArte === 'retocar'} disabled={!!generandoArte}>
+              {(imagenPreview || post.image_url) && (
+                <Button variant="outline" className="w-full" onClick={handleAjustarImagen} isLoading={generandoArte === 'ajustar'} disabled={!!generandoArte}>
                   <SafeIcon name="Feather" className="w-4 h-4 mr-2" />
-                  {generandoArte === 'retocar' ? 'Mejorando tu foto…' : 'Retocar y mejorar mi foto'}
+                  {generandoArte === 'ajustar' ? 'Ajustando…' : (instruccionArte.trim() ? 'Aplicar cambios a la imagen actual' : 'Retocar y mejorar la imagen actual')}
                 </Button>
               )}
               {errorArte && <p className="text-[11px] text-red-500">{errorArte}</p>}
@@ -621,6 +659,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 </Button>
               )}
               <p className="text-[10px] text-gray-400 leading-snug">
+                {(imagenPreview || post.image_url) ? 'Tip: escribe un cambio arriba (ej. "más brillante", "fondo blanco") y toca “Aplicar cambios”. ' : ''}
                 {profile?.plan === 'MENSUAL'
                   ? 'Tu plan Mensual incluye imágenes ilimitadas.'
                   : `Cada imagen usa 1 crédito. Te quedan ${profile?.credits ?? 0}.`}
