@@ -39,6 +39,27 @@ export default function Admin() {
     setLoading(false);
   };
 
+  // Broadcast de avisos a todos los usuarios
+  const [bcTitle, setBcTitle] = useState('');
+  const [bcMsg, setBcMsg] = useState('');
+  const [bcSending, setBcSending] = useState(false);
+  const [bcResult, setBcResult] = useState(null); // { tipo, texto }
+
+  const enviarBroadcast = async () => {
+    if (bcSending || !bcTitle.trim() || !bcMsg.trim()) return;
+    setBcSending(true);
+    setBcResult(null);
+    try {
+      const res = await db.adminBroadcast(bcTitle.trim(), bcMsg.trim());
+      setBcResult({ tipo: 'ok', texto: `Aviso enviado a ${res.sent} usuario(s).` });
+      setBcTitle(''); setBcMsg('');
+    } catch (e) {
+      setBcResult({ tipo: 'error', texto: e.message || 'No se pudo enviar.' });
+    } finally {
+      setBcSending(false);
+    }
+  };
+
   // Códigos de regalo
   const [codes, setCodes] = useState([]);
   const [codesLoading, setCodesLoading] = useState(false);
@@ -206,6 +227,34 @@ export default function Admin() {
           >
             <SafeIcon name="Shield" className="w-4 h-4 mr-1.5" /> Hacer admin
           </Button>
+        </div>
+      </Card>
+
+      {/* Enviar aviso a todos */}
+      <Card className="p-5">
+        <h3 className="font-heading font-bold text-lg mb-1 flex items-center gap-2">
+          <SafeIcon name="Send" className="w-5 h-5 text-primary" /> Enviar aviso a todos
+        </h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Escribe un mensaje y llega a la campana de <b>todos</b> los usuarios. (Aviso dentro de la app; el push al celular con la app cerrada llega cuando activemos la app instalable.)
+        </p>
+        <div className="space-y-2">
+          <Input value={bcTitle} onChange={e => setBcTitle(e.target.value)} placeholder="Título (ej. Nueva función 🎉)" className="h-11" />
+          <textarea
+            value={bcMsg}
+            onChange={e => setBcMsg(e.target.value)}
+            placeholder="Mensaje para tus usuarios…"
+            rows={3}
+            className="w-full rounded-xl border border-gray-200 bg-white/60 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={enviarBroadcast} isLoading={bcSending} disabled={!bcTitle.trim() || !bcMsg.trim()}>
+              <SafeIcon name="Send" className="w-4 h-4 mr-1.5" /> Enviar a todos
+            </Button>
+            {bcResult && (
+              <span className={cn('text-sm', bcResult.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{bcResult.texto}</span>
+            )}
+          </div>
         </div>
       </Card>
 

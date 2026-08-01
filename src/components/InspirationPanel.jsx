@@ -7,7 +7,7 @@ import { Button, Card, Badge, Skeleton } from './ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn, getPilarColor, getPilarText } from '../lib/utils';
 
-export default function InspirationPanel({ isOpen, onClose, onIdeaSelected }) {
+export default function InspirationPanel({ isOpen, onClose, onIdeaSelected, onCrearManual }) {
   const { currentBusiness } = useAuth();
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -99,6 +99,18 @@ export default function InspirationPanel({ isOpen, onClose, onIdeaSelected }) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Opción de crear contenido propio (además de la inspiración IA). */}
+              {onCrearManual && (
+                <div>
+                  <button
+                    onClick={onCrearManual}
+                    className="w-full flex items-center justify-center gap-2 h-11 rounded-xl border border-dashed border-gray-300 text-sm font-semibold text-gray-600 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-colors"
+                  >
+                    <SafeIcon name="Edit3" className="w-4 h-4" /> Escribir la mía (en blanco)
+                  </button>
+                  <p className="text-center text-[11px] text-gray-400 mt-2">o deja que la IA te inspire 👇</p>
+                </div>
+              )}
               {loading ? (
                 Array(3).fill(0).map((_, i) => (
                   <Card key={i} className="p-4 space-y-3">

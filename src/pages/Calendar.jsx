@@ -33,7 +33,6 @@ export default function CalendarHub() {
   const [generandoMes, setGenerandoMes] = useState(false);
   const [errorMes, setErrorMes] = useState('');
   const [historiasBank, setHistoriasBank] = useState([]);
-  const [pubStats, setPubStats] = useState([]);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -95,29 +94,7 @@ export default function CalendarHub() {
     } finally {
       setLoading(false);
     }
-    // Contador/racha: publicaciones marcadas como publicadas, mes a mes.
-    db.getPublicacionesStats(currentBusiness.id).then(setPubStats).catch(() => {});
   };
-
-  // Resumen de publicaciones (para el widget de racha). Cuenta solo las marcadas
-  // como PUBLISHED, agrupadas por mes de su fecha.
-  const resumenPub = (() => {
-    const pub = (pubStats || []).filter(p => p.status === 'PUBLISHED');
-    const byMonth = {};
-    pub.forEach(p => { const k = format(new Date(p.fecha), 'yyyy-MM'); byMonth[k] = (byMonth[k] || 0) + 1; });
-    const kVisto = format(currentDate, 'yyyy-MM');
-    const kPasado = format(subMonths(currentDate, 1), 'yyyy-MM');
-    // Racha: meses consecutivos con al menos una publicada, terminando en el mes
-    // real actual; si este aún no tiene, arranca en el más reciente con actividad.
-    let racha = 0;
-    let cursor = new Date();
-    if (!byMonth[format(cursor, 'yyyy-MM')]) {
-      const keys = Object.keys(byMonth).sort();
-      cursor = keys.length ? new Date(keys[keys.length - 1] + '-01T12:00:00') : null;
-    }
-    while (cursor && byMonth[format(cursor, 'yyyy-MM')]) { racha++; cursor = subMonths(cursor, 1); }
-    return { mesVisto: byMonth[kVisto] || 0, mesPasado: byMonth[kPasado] || 0, total: pub.length, racha };
-  })();
 
   const handleCreatePostInSlot = (day) => {
     setSelectedSlot(day);
@@ -220,6 +197,28 @@ export default function CalendarHub() {
       formato: idea.formato,
       canal: est.canalPrincipal || 'Instagram',
       gancho: idea.gancho,
+      hora: 'mediodia'
+    }]);
+    setIsInspirationOpen(false);
+    navigate(`/n/${currentBusiness.id}/post/${newPosts[0].id}`);
+  };
+
+  // Crea una publicación EN BLANCO (contenido propio del usuario) y abre el editor.
+  const handleCrearManual = async () => {
+    let grid = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    if (!grid) {
+      const gridsCount = await db.countGrids(currentBusiness.id);
+      if (!puedeCrearMes(profile, gridsCount)) { setIsInspirationOpen(false); setUpsell(true); return; }
+      grid = await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    }
+    const newPosts = await db.createPosts([{
+      grid_id: grid.id,
+      fecha: selectedSlot ? selectedSlot.toISOString() : new Date().toISOString(),
+      pilar: 'General',
+      pilar_tipo: 'educacion',
+      formato: 'Publicación',
+      canal: est.canalPrincipal || 'Instagram',
+      gancho: 'Mi publicación',
       hora: 'mediodia'
     }]);
     setIsInspirationOpen(false);
@@ -404,59 +403,18 @@ export default function CalendarHub() {
   return (
     // pb-32 en móvil deja aire para la barra inferior y el botón de chat
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen pb-32 lg:pb-12">
-      {currentBusiness?.propuesta_valor && (
-        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-primary/5 to-success/5 border-primary/10">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0"><SafeIcon name="Compass" className="w-5 h-5" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-0.5">Tu propuesta de valor</p>
-              <p className="text-sm text-gray-800 font-medium leading-snug">{currentBusiness.propuesta_valor}</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {est.canalPrincipal && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Send" className="w-3 h-3" /> {est.canalPrincipal}</span>}
-                {est.frecuencia && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Repeat" className="w-3 h-3" /> {est.frecuencia}</span>}
-                <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-[10px] px-2 py-0.5 rounded-full bg-white text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/5"><SafeIcon name="Edit2" className="w-3 h-3" /> Editar estrategia</button>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-      {/* Tip por sector (Fase 1): consejo real curado, personalizable con IA. */}
+      {/* Saludo simple con el nombre (calendario más limpio, sin banner de propuesta). */}
+      <div className="mb-5">
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-gray-900">
+          Hola, {(profile?.name || '').trim().split(' ')[0] || 'emprendedor'} 👋
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Tu parrilla de <span className="font-medium text-gray-700">{currentBusiness?.nombre || 'tu negocio'}</span>. Tus estadísticas están en <button onClick={() => navigate(`/n/${currentBusiness?.id}/ajustes`)} className="text-primary hover:underline font-medium">Ajustes → Resumen</button>.
+        </p>
+      </div>
+
+      {/* Tip por sector (Fase 1): consejo real curado, compacto y con chispa. */}
       {currentBusiness && <TipNegocio business={currentBusiness} />}
-
-      {/* Racha / contador de publicaciones: refuerza el hábito con un número
-          grande y una frase de aliento (no una gráfica corporativa). */}
-      {(posts.length > 0 || resumenPub.total > 0) && (
-        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-alert/5 to-primary/5 border-alert/15">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-alert/10 flex items-center justify-center text-alert shrink-0">
-                <SafeIcon name="Zap" className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-3xl font-heading font-bold text-gray-900 leading-none">
-                  {resumenPub.mesVisto}
-                  <span className="text-sm font-medium text-gray-400"> publicad{resumenPub.mesVisto === 1 ? 'a' : 'as'}</span>
-                </p>
-                <p className="text-xs text-gray-500 capitalize mt-0.5">en {format(currentDate, 'MMMM', { locale: es })}</p>
-              </div>
-            </div>
-
-            {resumenPub.racha >= 2 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 border border-alert/20 text-sm font-bold text-alert">
-                🔥 {resumenPub.racha} meses seguidos
-              </div>
-            )}
-
-            <p className="text-sm text-gray-600 flex-1 min-w-[180px] leading-snug">
-              {resumenPub.mesVisto === 0
-                ? 'Cuando subas un post a tus redes, ábrelo y toca “Ya lo publiqué”. Así llevas la cuenta y no pierdes el ritmo.'
-                : resumenPub.mesVisto > resumenPub.mesPasado
-                  ? `¡Vas mejor que el mes pasado (${resumenPub.mesPasado})! La constancia es lo que mueve el algoritmo. 💪`
-                  : `Llevas ${resumenPub.total} publicad${resumenPub.total === 1 ? 'a' : 'as'} en total. Sigue así, la constancia le gana a la intensidad.`}
-            </p>
-          </div>
-        </Card>
-      )}
 
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div className="flex items-center gap-1.5 md:gap-3">
@@ -559,7 +517,7 @@ export default function CalendarHub() {
         titulo="Planea más meses con Mensual"
         mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
       />
-      <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
+      <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} onCrearManual={handleCrearManual} />
       <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} historias={historiasBank} />
     </div>
   );
