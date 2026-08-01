@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { iniciarConexionInstagram } from '../lib/instagram';
 import { useAuth } from '../context/AuthContext';
 import supabase from '../supabase/supabase';
 import { db } from '../lib/db';
@@ -38,6 +39,20 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Retorno del OAuth de Instagram (?ig=ok|error).
+  useEffect(() => {
+    const ig = searchParams.get('ig');
+    if (!ig) return;
+    setActiveTab('redes');
+    if (ig === 'ok') alert('¡Instagram conectado! Ya puedes publicar directo desde el editor.');
+    else alert('No se pudo conectar Instagram: ' + (searchParams.get('msg') || 'inténtalo de nuevo.'));
+    if (currentBusiness?.id) db.getSocialAccounts(currentBusiness.id).then(setSocialAccounts).catch(() => {});
+    searchParams.delete('ig'); searchParams.delete('msg');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, currentBusiness?.id]);
   const [showDelete, setShowDelete] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -373,7 +388,9 @@ export default function Settings() {
             { key: 'facebook', label: 'Facebook', icon: 'Facebook', ph: 'Nombre de tu página' },
           ].map(({ key, label, icon, ph }) => {
             const acc = cuentaDe(key);
-            const activa = acc && acc.status !== 'desconectada';
+            const isIG = key === 'instagram';
+            const conectada = acc && acc.status === 'conectada';
+            const pendiente = acc && acc.status === 'pendiente';
             return (
               <Card key={key} className="p-5 space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -383,31 +400,51 @@ export default function Settings() {
                     </div>
                     <div>
                       <h3 className="font-heading font-bold text-gray-900 leading-tight">{label}</h3>
-                      {activa
-                        ? <Badge variant="primary" className="text-[10px] uppercase mt-0.5">Pendiente de activación</Badge>
-                        : <span className="text-[11px] text-gray-400">Sin conectar</span>}
+                      {conectada
+                        ? <Badge variant="success" className="text-[10px] uppercase mt-0.5">Conectada{acc.username ? ` · @${acc.username}` : ''}</Badge>
+                        : pendiente
+                          ? <Badge variant="primary" className="text-[10px] uppercase mt-0.5">Pendiente de activación</Badge>
+                          : <span className="text-[11px] text-gray-400">Sin conectar</span>}
                     </div>
                   </div>
-                  {activa && (
+                  {(conectada || pendiente) && (
                     <button onClick={() => desconectarRed(key)} disabled={socialBusy === key} className="text-[11px] text-gray-400 hover:text-red-500 disabled:opacity-40">
                       Desconectar
                     </button>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <Input
-                    value={socialUser[key]}
-                    onChange={e => setSocialUser(s => ({ ...s, [key]: e.target.value }))}
-                    placeholder={ph}
-                    className="h-11 flex-1"
-                  />
-                  <Button onClick={() => conectarRed(key)} isLoading={socialBusy === key}>
-                    {activa ? 'Guardar' : 'Conectar'}
-                  </Button>
-                </div>
-                <p className="text-[11px] text-gray-400">
-                  Guardamos tu {key === 'instagram' ? 'usuario' : 'página'} para dejar todo listo. Cuando actives la publicación directa, la usaremos para publicar por ti.
-                </p>
+
+                {isIG ? (
+                  <>
+                    <Button
+                      className="w-full"
+                      isLoading={socialBusy === 'instagram'}
+                      onClick={async () => {
+                        setSocialBusy('instagram');
+                        try { await iniciarConexionInstagram(currentBusiness.id); }
+                        catch (e) { alert('No se pudo iniciar la conexión: ' + (e.message || e)); setSocialBusy(null); }
+                      }}
+                    >
+                      <SafeIcon name="Instagram" className="w-4 h-4 mr-1.5" />
+                      {conectada ? 'Reconectar Instagram' : 'Conectar Instagram'}
+                    </Button>
+                    <p className="text-[11px] text-gray-400">
+                      Te llevamos a Instagram para autorizar. Necesitas una cuenta <b>profesional</b> (Empresa o Creador). Luego podrás publicar directo desde el editor.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <Input value={socialUser[key]} onChange={e => setSocialUser(s => ({ ...s, [key]: e.target.value }))} placeholder={ph} className="h-11 flex-1" />
+                      <Button onClick={() => conectarRed(key)} isLoading={socialBusy === key}>
+                        {pendiente ? 'Guardar' : 'Conectar'}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Guardamos tu página para dejar todo listo. La publicación directa a Facebook llegará más adelante.
+                    </p>
+                  </>
+                )}
               </Card>
             );
           })}

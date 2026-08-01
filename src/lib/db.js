@@ -219,9 +219,16 @@ export const db = {
     return data || [];
   },
 
-  // Publica directo en Instagram vía la Edge Function (usa el token de secreto).
-  async publicarInstagram(imageUrl, caption) {
-    const { data, error } = await supabase.functions.invoke('publicar-instagram', { body: { imageUrl, caption } });
+  // Crea un "state" (nonce) para iniciar el OAuth de Instagram de forma segura.
+  async crearIgOauthState(businessId) {
+    const { data, error } = await supabase.rpc('crear_ig_oauth_state', { p_business_id: businessId });
+    if (error) throw new Error(error.message || 'No se pudo iniciar la conexión.');
+    return data; // nonce
+  },
+
+  // Publica directo en Instagram vía la Edge Function (token por cuenta o secreto).
+  async publicarInstagram(imageUrl, caption, businessId = null) {
+    const { data, error } = await supabase.functions.invoke('publicar-instagram', { body: { imageUrl, caption, businessId } });
     if (error) {
       // Cuando la función responde con un código de error, el mensaje real
       // (el de Meta) viene en el cuerpo; lo extraemos en vez de mostrar el genérico.
