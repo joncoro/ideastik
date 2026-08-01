@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import BusinessSwitcher from './BusinessSwitcher';
 import NotificationCenter from './NotificationCenter';
+import SmoothTabBar from './SmoothTabBar';
 
 export default function Layout() {
   const { user, profile, currentBusiness, logout } = useAuth();
@@ -70,17 +71,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 glass border-t border-white/50 rounded-none flex justify-around items-center h-16 pb-safe z-50">
-        {navItems.map((item) => (
-          <NavLink key={item.name} to={item.path} className={({ isActive }) => cn(
-            "flex flex-col items-center justify-center w-full h-full gap-1 transition-colors",
-            isActive ? "text-primary" : "text-gray-400"
-          )}>
-            <SafeIcon name={item.icon} className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{item.name}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <SmoothTabBar items={navItems} />
     </div>
   );
 }
