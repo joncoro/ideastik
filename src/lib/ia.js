@@ -116,6 +116,25 @@ export async function generarJSON(system, messages, maxTokens = 800) {
 }
 
 /**
+ * Genera JSON a partir de una IMAGEN + instrucción (visión de Claude).
+ * `imagen` = { base64, mediaType } (ej. 'image/jpeg'). Reusa la reparación de
+ * JSON de generarJSON. Devuelve el objeto/array parseado o null.
+ */
+export async function generarJSONConImagen(system, userText, imagen, maxTokens = 1800) {
+  const messages = [{
+    role: 'user',
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: imagen.mediaType, data: imagen.base64 } },
+      { type: 'text', text: String(userText) },
+    ],
+  }];
+  const data = await callAgentFunction({ system: String(system), messages, maxTokens: Number(maxTokens), stream: false });
+  const rawText = data.content?.[0]?.text || data.text || '';
+  const cleanText = rawText.replace(/```json|```/g, '').trim();
+  return repararJSONTruncado(cleanText);
+}
+
+/**
  * Genera TEXTO plano (no JSON) — para copys de publicaciones y mensajes libres.
  * Devuelve el string del modelo, o '' si no hubo texto.
  */

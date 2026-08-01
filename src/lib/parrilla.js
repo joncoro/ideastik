@@ -6,6 +6,7 @@
 import { addDays } from 'date-fns';
 import { generarJSON } from './ia';
 import { WIZARD_PHASES } from './wizardMachine';
+import { sugerirAngulos, semillaMes } from './bancoIdeas';
 
 /** Extrae un objeto de una respuesta de IA (objeto directo o string JSON). */
 export const extraerObjeto = (data) => {
@@ -101,11 +102,20 @@ export const buildIdeasPrompt = (biz, contextoExtra = '') => {
   const nombres = sel.map(p => p.nombre).filter(Boolean);
   const extra = contextoExtra ? `\n\n${contextoExtra}` : '';
   if (nombres.length === 0) return (WIZARD_PHASES.IDEAS_GENERAR.prompt || '') + extra;
+  // Semilla mensual: las sugerencias del banco rotan mes a mes para que la
+  // parrilla no se sienta repetida entre renovaciones.
+  const seed = semillaMes();
   const guia = sel
     .filter(p => p.nombre)
-    .map(p => `"${p.nombre}" (pilar de ${p.tipo}: detona con — ${BANCO_POR_TIPO[p.tipo] || 'algo útil para el cliente'})`)
-    .join('; ');
-  return `Genera exactamente 2 ideas de post para CADA uno de estos pilares, usando EXACTAMENTE estos nombres como claves (sin inventar otros). Para cada pilar, inspírate en sus preguntas detonadoras: ${guia}. Las ideas deben ser concretas, hablarle al cliente ideal y específicas a este negocio (nada genérico). Cada 'gancho' y 'desc' corto (máximo 14 palabras).${extra} Responde SOLO con JSON válido y completo: {"ideas": {${nombres.map(n => `"${n}": [{"gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]`).join(', ')}}}`;
+    .map((p, i) => {
+      const angulos = sugerirAngulos(p.tipo, 3, seed + i, p.tipo === 'venta');
+      const inspira = angulos.length
+        ? ` Elige DOS formatos DISTINTOS de esta lista y adáptalos a este negocio (no los copies literal): ${angulos.map(a => `«${a}»`).join(', ')}.`
+        : '';
+      return `"${p.nombre}" (pilar de ${p.tipo}: detona con — ${BANCO_POR_TIPO[p.tipo] || 'algo útil para el cliente'}).${inspira}`;
+    })
+    .join('\n- ');
+  return `Genera exactamente 2 ideas de post para CADA uno de estos pilares, usando EXACTAMENTE estos nombres como claves (sin inventar otros):\n- ${guia}\n\nREGLAS DE VARIEDAD (efecto WOW): las 2 ideas de un mismo pilar deben tener FORMATO y ÁNGULO distintos entre sí, y en todo el mes evita repetir el mismo tipo de post. REGLA 80/20: solo el pilar de venta puede rematar con un CTA de venta; el resto aporta valor puro y NO vende. Las ideas deben ser concretas, hablarle al cliente ideal y específicas a este negocio (nada genérico). Cada 'gancho' y 'desc' corto (máximo 14 palabras).${extra} Responde SOLO con JSON válido y completo: {"ideas": {${nombres.map(n => `"${n}": [{"gancho": "string", "desc": "string", "formato": "Reel|Carrusel|Historia"}]`).join(', ')}}}`;
 };
 
 /** Normaliza un nombre para comparar sin acentos/mayúsculas/espacios extra. */

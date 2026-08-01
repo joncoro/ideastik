@@ -3,6 +3,7 @@ import supabase from '../supabase/supabase';
 import { Button, Card, Input, Badge } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
+import { db } from '../lib/db';
 
 const fmtDate = (s) => {
   if (!s) return '—';
@@ -38,7 +39,46 @@ export default function Admin() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  // Códigos de regalo
+  const [codes, setCodes] = useState([]);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [genCredits, setGenCredits] = useState(30);
+  const [genCount, setGenCount] = useState(5);
+  const [genNote, setGenNote] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [lastGenerated, setLastGenerated] = useState(null); // { codes:[], credits }
+
+  const loadCodes = async () => {
+    setCodesLoading(true);
+    try { setCodes(await db.adminListPromoCodes()); }
+    catch (e) { console.warn('No se pudieron cargar los códigos:', e?.message || e); }
+    finally { setCodesLoading(false); }
+  };
+
+  useEffect(() => { load(); loadCodes(); }, []);
+
+  const generarCodigos = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setLastGenerated(null);
+    try {
+      const res = await db.adminCreatePromoCodes({ credits: Number(genCredits), count: Number(genCount), note: genNote.trim() || null });
+      setLastGenerated({ codes: res.codes || [], credits: res.credits });
+      setGenNote('');
+      loadCodes();
+    } catch (e) {
+      alert('No se pudieron generar los códigos: ' + (e.message || e));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleCodigo = async (id, activar) => {
+    try { await db.adminSetPromoActive(id, activar); loadCodes(); }
+    catch (e) { alert('No se pudo actualizar el código: ' + (e.message || e)); }
+  };
+
+  const copiar = (txt) => { try { navigator.clipboard?.writeText(txt); } catch { /* noop */ } };
 
   const setRole = async (email, makeAdmin) => {
     setBusy(email);
@@ -166,6 +206,106 @@ export default function Admin() {
           >
             <SafeIcon name="Shield" className="w-4 h-4 mr-1.5" /> Hacer admin
           </Button>
+        </div>
+      </Card>
+
+      {/* Códigos de regalo */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-1 gap-3">
+          <h3 className="font-heading font-bold text-lg flex items-center gap-2">
+            <SafeIcon name="Gift" className="w-5 h-5 text-primary" /> Códigos de regalo
+          </h3>
+          <Button variant="outline" size="sm" onClick={loadCodes} disabled={codesLoading}>
+            <SafeIcon name="RefreshCw" className={cn('w-4 h-4 mr-1.5', codesLoading && 'animate-spin')} /> Actualizar
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Genera códigos para regalar publicaciones a quienes te dan feedback. El usuario debe dejar una opinión antes de canjear.
+        </p>
+
+        {/* Generador */}
+        <div className="grid sm:grid-cols-[120px_120px_1fr_auto] gap-3 items-end bg-white/40 rounded-xl p-3 mb-4">
+          <div>
+            <label className="text-xs text-gray-400 font-medium">Publicaciones</label>
+            <Input type="number" min={1} value={genCredits} onChange={e => setGenCredits(e.target.value)} className="h-10" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 font-medium">Cantidad</label>
+            <Input type="number" min={1} max={200} value={genCount} onChange={e => setGenCount(e.target.value)} className="h-10" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 font-medium">Nota (opcional)</label>
+            <Input value={genNote} onChange={e => setGenNote(e.target.value)} placeholder="Para quién / motivo" className="h-10" />
+          </div>
+          <Button onClick={generarCodigos} isLoading={generating} disabled={!genCredits || !genCount}>
+            <SafeIcon name="Plus" className="w-4 h-4 mr-1.5" /> Generar
+          </Button>
+        </div>
+
+        {/* Recién generados (para copiar y repartir) */}
+        {lastGenerated && lastGenerated.codes.length > 0 && (
+          <div className="mb-4 rounded-xl border border-primary/20 bg-primary/[0.03] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-primary">
+                {lastGenerated.codes.length} código(s) de {lastGenerated.credits} publicaciones — cópialos y repártelos:
+              </p>
+              <button onClick={() => copiar(lastGenerated.codes.join('\n'))} className="text-xs text-primary hover:underline flex items-center gap-1">
+                <SafeIcon name="Copy" className="w-3.5 h-3.5" /> Copiar todos
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {lastGenerated.codes.map((c) => (
+                <button key={c} onClick={() => copiar(c)} title="Copiar" className="font-mono text-sm bg-white border border-primary/20 rounded-lg px-2.5 py-1 hover:bg-primary/5">
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Lista de códigos */}
+        <div className="overflow-x-auto -mx-2">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="text-left text-xs text-gray-400 border-b border-white/60">
+                <th className="py-2 px-2 font-medium">Código</th>
+                <th className="py-2 px-2 font-medium text-center">Publicaciones</th>
+                <th className="py-2 px-2 font-medium text-center">Usos</th>
+                <th className="py-2 px-2 font-medium">Nota</th>
+                <th className="py-2 px-2 font-medium">Canjeado por</th>
+                <th className="py-2 px-2 font-medium text-right">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map((c) => (
+                <tr key={c.id} className="border-b border-white/40 hover:bg-white/40">
+                  <td className="py-2.5 px-2">
+                    <button onClick={() => copiar(c.code)} title="Copiar" className="font-mono font-bold text-gray-800 hover:text-primary">{c.code}</button>
+                  </td>
+                  <td className="py-2.5 px-2 text-center">{c.credits}</td>
+                  <td className="py-2.5 px-2 text-center">{c.redeemed_count}/{c.max_redemptions}</td>
+                  <td className="py-2.5 px-2 text-gray-500 max-w-[160px] truncate" title={c.note || ''}>{c.note || '—'}</td>
+                  <td className="py-2.5 px-2 text-gray-500 text-xs">
+                    {(c.redeemed_by || []).length === 0
+                      ? '—'
+                      : (c.redeemed_by || []).map((r) => r.email).join(', ')}
+                  </td>
+                  <td className="py-2.5 px-2 text-right">
+                    <button
+                      onClick={() => toggleCodigo(c.id, !c.active)}
+                      className={cn('text-xs font-bold transition-colors', c.active ? 'text-success hover:text-red-500' : 'text-gray-400 hover:text-success')}
+                      title={c.active ? 'Desactivar' : 'Activar'}
+                    >
+                      {c.active ? 'Activo' : 'Inactivo'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {codes.length === 0 && (
+                <tr><td colSpan={6} className="py-6 text-center text-gray-400 text-sm">{codesLoading ? 'Cargando…' : 'Aún no has generado códigos.'}</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </Card>
 

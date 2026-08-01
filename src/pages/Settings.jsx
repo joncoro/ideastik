@@ -75,6 +75,40 @@ export default function Settings() {
     notify_via_app: true
   });
 
+  // Redes sociales (andamiaje). Estado por plataforma + usuario que escribe.
+  const [socialAccounts, setSocialAccounts] = useState([]);
+  const [socialUser, setSocialUser] = useState({ instagram: '', facebook: '' });
+  const [socialBusy, setSocialBusy] = useState(null); // platform en curso
+
+  const loadSocial = async () => {
+    try {
+      const rows = await db.getSocialAccounts(currentBusiness.id);
+      setSocialAccounts(rows);
+      setSocialUser({
+        instagram: rows.find(r => r.platform === 'instagram')?.username || '',
+        facebook: rows.find(r => r.platform === 'facebook')?.username || '',
+      });
+    } catch (e) { console.error('No se pudieron cargar las redes:', e); }
+  };
+
+  const cuentaDe = (platform) => socialAccounts.find(r => r.platform === platform);
+
+  const conectarRed = async (platform) => {
+    setSocialBusy(platform);
+    try {
+      await db.conectarRed(currentBusiness.id, platform, (socialUser[platform] || '').trim().replace(/^@/, '') || null);
+      await loadSocial();
+    } catch (e) { alert('No se pudo guardar la cuenta: ' + (e.message || e)); }
+    finally { setSocialBusy(null); }
+  };
+
+  const desconectarRed = async (platform) => {
+    setSocialBusy(platform);
+    try { await db.desconectarRed(currentBusiness.id, platform); await loadSocial(); }
+    catch (e) { alert('No se pudo desconectar: ' + (e.message || e)); }
+    finally { setSocialBusy(null); }
+  };
+
   useEffect(() => {
     if (currentBusiness) {
       setFormData({
@@ -104,6 +138,7 @@ export default function Settings() {
         tipo: p.tipo || 'educacion', nombre: p.nombre || '', desc: p.desc || p.descripcion || ''
       })));
       loadReminderSettings();
+      loadSocial();
     }
   }, [currentBusiness]);
 
@@ -249,8 +284,63 @@ export default function Settings() {
       <div className="flex gap-1 bg-white/50 backdrop-blur border border-white/60 p-1 rounded-2xl w-fit">
         {tab('general', 'General')}
         {tab('estrategia', 'Estrategia')}
+        {tab('redes', 'Redes')}
         {tab('reminders', 'Recordatorios')}
       </div>
+
+      {activeTab === 'redes' && (
+        <div className="space-y-4">
+          <Card className="p-4 bg-primary/[0.03] border-primary/15">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Conecta tus redes para tenerlo listo. Hoy la publicación es <b>asistida</b> (te preparamos la foto y el texto y abres la app). La <b>publicación directa</b> desde Ideastik se activará apenas Meta apruebe la integración, sin que tengas que hacer nada más.
+            </p>
+          </Card>
+
+          {[
+            { key: 'instagram', label: 'Instagram', icon: 'Instagram', ph: 'tu_usuario' },
+            { key: 'facebook', label: 'Facebook', icon: 'Facebook', ph: 'Nombre de tu página' },
+          ].map(({ key, label, icon, ph }) => {
+            const acc = cuentaDe(key);
+            const activa = acc && acc.status !== 'desconectada';
+            return (
+              <Card key={key} className="p-5 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <SafeIcon name={icon} className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-heading font-bold text-gray-900 leading-tight">{label}</h3>
+                      {activa
+                        ? <Badge variant="primary" className="text-[10px] uppercase mt-0.5">Pendiente de activación</Badge>
+                        : <span className="text-[11px] text-gray-400">Sin conectar</span>}
+                    </div>
+                  </div>
+                  {activa && (
+                    <button onClick={() => desconectarRed(key)} disabled={socialBusy === key} className="text-[11px] text-gray-400 hover:text-red-500 disabled:opacity-40">
+                      Desconectar
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={socialUser[key]}
+                    onChange={e => setSocialUser(s => ({ ...s, [key]: e.target.value }))}
+                    placeholder={ph}
+                    className="h-11 flex-1"
+                  />
+                  <Button onClick={() => conectarRed(key)} isLoading={socialBusy === key}>
+                    {activa ? 'Guardar' : 'Conectar'}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Guardamos tu {key === 'instagram' ? 'usuario' : 'página'} para dejar todo listo. Cuando actives la publicación directa, la usaremos para publicar por ti.
+                </p>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {activeTab === 'general' && (
         <form onSubmit={handleSaveGeneral} className="space-y-6">

@@ -6,6 +6,7 @@ import SafeIcon from '../common/SafeIcon';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { iniciarSuscripcion, comprarCreditos, cancelarSuscripcion, CREDIT_PACKS, PLAN_MENSUAL_PRECIO, formatearPrecio } from '../lib/pagos';
+import { db } from '../lib/db';
 
 export default function Account() {
   const { user, profile, logout, refreshProfile } = useAuth();
@@ -21,6 +22,54 @@ export default function Account() {
   const [banner, setBanner] = useState(null); // { tipo, texto }
 
   const esMensual = profile?.plan === 'MENSUAL';
+
+  // Opinión (requisito para canjear un código) y canje de código de regalo.
+  const [opinion, setOpinion] = useState('');
+  const [rating, setRating] = useState(0);
+  const [enviandoOp, setEnviandoOp] = useState(false);
+  const [opinionOk, setOpinionOk] = useState(false);
+  const [yaOpino, setYaOpino] = useState(false);
+  const [codigo, setCodigo] = useState('');
+  const [canjeando, setCanjeando] = useState(false);
+  const [canjeMsg, setCanjeMsg] = useState(null); // { tipo, texto }
+
+  useEffect(() => {
+    if (!user?.id) return;
+    db.miOpinionCount(user.id).then((n) => setYaOpino(n > 0)).catch(() => {});
+  }, [user?.id]);
+
+  const handleEnviarOpinion = async () => {
+    if (!opinion.trim() || enviandoOp) return;
+    setEnviandoOp(true);
+    try {
+      await db.enviarOpinion(user.id, { message: opinion.trim(), rating: rating || null, page: 'account' });
+      setOpinion('');
+      setRating(0);
+      setOpinionOk(true);
+      setYaOpino(true);
+    } catch (err) {
+      alert('No se pudo enviar tu opinión: ' + (err.message || err));
+    } finally {
+      setEnviandoOp(false);
+    }
+  };
+
+  const handleCanjear = async () => {
+    const code = codigo.trim();
+    if (!code || canjeando) return;
+    setCanjeando(true);
+    setCanjeMsg(null);
+    try {
+      const res = await db.redeemPromoCode(code);
+      setCanjeMsg({ tipo: 'success', texto: `¡Listo! Sumamos ${res.credits_added} publicaciones. Ahora tienes ${res.new_balance}.` });
+      setCodigo('');
+      await refreshProfile?.();
+    } catch (err) {
+      setCanjeMsg({ tipo: 'error', texto: err.message || 'No se pudo canjear el código.' });
+    } finally {
+      setCanjeando(false);
+    }
+  };
 
   // Al volver de Mercado Pago (?pago=...), mostramos feedback y refrescamos el perfil.
   useEffect(() => {
@@ -254,6 +303,76 @@ export default function Account() {
           </p>
         </section>
       )}
+
+      {/* Opinión + Canje de código de regalo */}
+      <section className="grid md:grid-cols-2 gap-6">
+        {/* Tu opinión */}
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <SafeIcon name="MessageCircle" className="w-5 h-5 text-primary" />
+            <h3 className="font-heading font-bold text-lg text-gray-900">Tu opinión nos ayuda</h3>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Cuéntanos qué te gusta o qué mejorarías. Con tu opinión puedes ganar publicaciones gratis con un código de regalo.
+          </p>
+          {opinionOk ? (
+            <div className="flex items-center gap-2 rounded-xl bg-success/5 border border-success/20 text-success text-sm p-3">
+              <SafeIcon name="CheckCircle" className="w-4 h-4 shrink-0" /> ¡Gracias! Recibimos tu opinión. Ya puedes canjear un código de regalo.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setRating(n)} className="p-0.5" aria-label={`${n} estrellas`}>
+                    <SafeIcon name="Star" className={'w-6 h-6 transition-colors ' + (n <= rating ? 'text-alert fill-alert' : 'text-gray-300')} />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={opinion}
+                onChange={(e) => setOpinion(e.target.value)}
+                placeholder="Escribe aquí lo que piensas de la app…"
+                rows={3}
+                className="w-full rounded-xl border border-gray-200 bg-white/60 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <Button className="w-full" onClick={handleEnviarOpinion} isLoading={enviandoOp} disabled={!opinion.trim()}>
+                <SafeIcon name="Send" className="w-4 h-4 mr-1.5" /> Enviar opinión
+              </Button>
+            </div>
+          )}
+        </Card>
+
+        {/* Canjear código */}
+        <Card className="p-6 bg-gradient-to-br from-primary/[0.02] to-primary/[0.06] border-primary/20">
+          <div className="flex items-center gap-2 mb-1">
+            <SafeIcon name="Gift" className="w-5 h-5 text-primary" />
+            <h3 className="font-heading font-bold text-lg text-gray-900">¿Tienes un código de regalo?</h3>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Canjéalo para sumar publicaciones a tu cuenta. {!yaOpino && 'Primero déjanos tu opinión para poder canjear.'}
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && handleCanjear()}
+              placeholder="Ej. GH7K2PQR"
+              className="h-11 flex-1 font-mono tracking-widest uppercase"
+              disabled={!yaOpino}
+            />
+            <Button onClick={handleCanjear} isLoading={canjeando} disabled={!codigo.trim() || !yaOpino}>
+              Canjear
+            </Button>
+          </div>
+          {canjeMsg && (
+            <div className={'mt-3 flex items-start gap-2 rounded-xl p-3 text-sm border ' +
+              (canjeMsg.tipo === 'success' ? 'bg-success/5 border-success/20 text-success' : 'bg-red-50 border-red-200 text-red-600')}>
+              <SafeIcon name={canjeMsg.tipo === 'success' ? 'CheckCircle' : 'AlertTriangle'} className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{canjeMsg.texto}</span>
+            </div>
+          )}
+        </Card>
+      </section>
 
       {/* Gestión Crítica */}
       <section className="pt-8 border-t border-gray-100">

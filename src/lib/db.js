@@ -96,6 +96,31 @@ export const db = {
     return data;
   },
 
+  // Marca (o desmarca) una publicación como ya publicada. Es el gesto de hábito
+  // que alimenta el contador/racha del calendario.
+  async marcarPublicado(id, publicado = true) {
+    return this.updatePost(id, { status: publicado ? 'PUBLISHED' : 'READY' });
+  },
+
+  // Fecha + estado de TODAS las publicaciones del negocio (a través de sus
+  // parrillas), para calcular el contador y la racha mes a mes. Ligero: solo
+  // trae dos columnas.
+  async getPublicacionesStats(businessId) {
+    const { data: grids, error: ge } = await supabase
+      .from('grids')
+      .select('id')
+      .eq('business_id', businessId);
+    if (ge) throw ge;
+    const ids = (grids || []).map(g => g.id);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from('posts')
+      .select('fecha, status')
+      .in('grid_id', ids);
+    if (error) throw error;
+    return data || [];
+  },
+
   async updatePost(id, updates) {
     const { data, error } = await supabase
       .from('posts')
@@ -148,5 +173,105 @@ export const db = {
       .limit(limit);
     if (error) throw error;
     return data || [];
+  },
+
+  // Opiniones del usuario. Dejar al menos una opinión es requisito para canjear
+  // un código de regalo (ver redeemPromoCode). El admin ve los conteos en su panel.
+  async enviarOpinion(userId, { message, rating = null, category = 'general', page = null, businessId = null }) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert([{ user_id: userId, message, rating, category, page, business_id: businessId }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async miOpinionCount(userId) {
+    const { count, error } = await supabase
+      .from('feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (error) throw error;
+    return count || 0;
+  },
+
+  // Canjear un código de regalo. El servidor exige haber dejado ≥1 opinión y
+  // suma los créditos de forma atómica. Devuelve { credits_added, new_balance }.
+  async redeemPromoCode(code) {
+    const { data, error } = await supabase.rpc('redeem_promo_code', { p_code: code });
+    if (error) throw new Error(error.message || 'No se pudo canjear el código.');
+    return data;
+  },
+
+  // --- Admin: gestión de códigos de regalo (todas validan is_admin en el servidor) ---
+  async adminCreatePromoCodes({ credits, count = 1, note = null, expiresAt = null, maxRedemptions = 1 }) {
+    const { data, error } = await supabase.rpc('admin_create_promo_codes', {
+      p_credits: credits, p_count: count, p_note: note, p_expires_at: expiresAt, p_max_redemptions: maxRedemptions,
+    });
+    if (error) throw new Error(error.message || 'No se pudieron crear los códigos.');
+    return data;
+  },
+
+  async adminListPromoCodes() {
+    const { data, error } = await supabase.rpc('admin_list_promo_codes');
+    if (error) throw new Error(error.message || 'No se pudieron cargar los códigos.');
+    return data || [];
+  },
+
+  // --- Redes sociales (andamiaje para publicar en IG/FB) ---
+  // No selecciona access_token: ese secreto nunca debe llegar al navegador.
+  async getSocialAccounts(businessId) {
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .select('id, business_id, platform, username, status, connected_at, created_at')
+      .eq('business_id', businessId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Registra/actualiza la intención de conexión. Hoy queda 'pendiente' (asistida);
+  // el flujo directo de Meta la pasará a 'conectada' cuando esté aprobado.
+  async conectarRed(businessId, platform, username = null) {
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .upsert(
+        { business_id: businessId, platform, username, status: 'pendiente' },
+        { onConflict: 'business_id,platform' }
+      )
+      .select('id, platform, username, status')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async desconectarRed(businessId, platform) {
+    const { error } = await supabase
+      .from('social_accounts')
+      .update({ status: 'desconectada' })
+      .eq('business_id', businessId)
+      .eq('platform', platform);
+    if (error) throw error;
+  },
+
+  // Descuenta 1 crédito por imagen (FREE) o confirma acceso ilimitado (MENSUAL).
+  // Lanza error si el usuario FREE se quedó sin créditos.
+  async consumirCreditoImagen() {
+    const { data, error } = await supabase.rpc('consumir_credito_imagen');
+    if (error) throw new Error(error.message || 'No se pudo verificar tus créditos.');
+    return data;
+  },
+
+  // Reembolsa 1 crédito (FREE) si la generación falló tras el descuento.
+  async reponerCreditoImagen() {
+    const { data, error } = await supabase.rpc('reponer_credito_imagen');
+    if (error) throw new Error(error.message || 'No se pudo reponer el crédito.');
+    return data;
+  },
+
+  async adminSetPromoActive(codeId, active) {
+    const { data, error } = await supabase.rpc('admin_set_promo_active', { p_code_id: codeId, p_active: active });
+    if (error) throw new Error(error.message || 'No se pudo actualizar el código.');
+    return data;
   }
 };
