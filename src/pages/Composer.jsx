@@ -31,6 +31,7 @@ export default function Composer() {
   const [historiasBank, setHistoriasBank] = useState([]);
   const [historiaGuardada, setHistoriaGuardada] = useState(false);
   const [marcando, setMarcando] = useState(false);
+  const [copiadoWpp, setCopiadoWpp] = useState(false);
   // Foto → contenido (visión de la IA).
   const [imagenPreview, setImagenPreview] = useState(null);
   const [imagenBase64, setImagenBase64] = useState(null); // foto subida, para retocar
@@ -367,14 +368,18 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     } catch { return null; }
   };
 
-  // Comparte el post por WhatsApp. En móvil usa la Web Share API (texto + foto);
-  // en escritorio abre WhatsApp Web con el texto listo. No necesita API de Meta.
+  // Comparte el post por WhatsApp. En móvil usa el compartir nativo con la FOTO
+  // adjunta y el copy como leyenda; ahí WhatsApp deja elegir un contacto o
+  // "Mi estado". En escritorio abre WhatsApp Web con el texto. Sin API de Meta.
   const handleCompartirWhatsApp = async () => {
     const texto = (copy || post?.gancho || '').trim();
     if (!texto) return;
+    // Respaldo: copiamos el texto por si WhatsApp no lo pega como leyenda.
+    try { await navigator.clipboard?.writeText(texto); setCopiadoWpp(true); setTimeout(() => setCopiadoWpp(false), 4000); } catch (_) { /* noop */ }
     try {
       const file = await imagenComoFile();
       if (navigator.share && file && navigator.canShare?.({ files: [file] })) {
+        // Imagen + leyenda. El usuario elige contacto o "Mi estado" en WhatsApp.
         await navigator.share({ text: texto, files: [file] });
         return;
       }
@@ -614,12 +619,16 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
               />
             </Card>
 
-            {/* Compartir: manda el texto (y la foto en móvil) directo a WhatsApp. */}
+            {/* Compartir: foto con el copy como leyenda; permite estado o contacto. */}
             <Button variant="success" className="w-full" onClick={handleCompartirWhatsApp} disabled={!copy && !post.gancho}>
-              <SafeIcon name="MessageCircle" className="w-4 h-4 mr-2" /> Compartir por WhatsApp
+              <SafeIcon name="MessageCircle" className="w-4 h-4 mr-2" />
+              {(imagenPreview || post.image_url) ? 'Compartir foto + texto por WhatsApp' : 'Compartir por WhatsApp'}
             </Button>
-            <p className="text-[11px] text-gray-400 -mt-3 text-center">
-              En el celular se abre WhatsApp con el texto {(imagenPreview || post.image_url) ? 'y la foto ' : ''}listos para enviar a un cliente o a tu estado.
+            <p className="text-[11px] text-gray-400 -mt-3 text-center leading-snug">
+              {(imagenPreview || post.image_url)
+                ? 'En el celular se abre WhatsApp con la foto y el copy como leyenda. Ahí eliges un contacto o "Mi estado".'
+                : 'En el celular puedes enviarlo a un contacto o a "Mi estado". (Genera una imagen arriba para compartir foto + leyenda.)'}
+              {copiadoWpp && <span className="block text-success font-medium mt-0.5">Copiamos el texto por si necesitas pegarlo como leyenda.</span>}
             </p>
 
             <Card className="p-4">
