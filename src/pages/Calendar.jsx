@@ -27,12 +27,12 @@ export default function CalendarHub() {
   const [eventModal, setEventModal] = useState(false);
   const [eventDate, setEventDate] = useState('');
   const [eventTitle, setEventTitle] = useState('');
+  const [eventTipo, setEventTipo] = useState('especial'); // 'especial' | 'promo'
   const [savingEvent, setSavingEvent] = useState(false);
   const [upsell, setUpsell] = useState(false);
   const [generandoMes, setGenerandoMes] = useState(false);
   const [errorMes, setErrorMes] = useState('');
   const [historiasBank, setHistoriasBank] = useState([]);
-  const [pubStats, setPubStats] = useState([]);
 
   // Estrategia normalizada: puede venir como {estrategia:{...}} o {...}
   const est = (() => {
@@ -43,12 +43,12 @@ export default function CalendarHub() {
 
   const eventos = Array.isArray(currentBusiness?.eventos) ? currentBusiness.eventos : [];
   const eventosDelDia = (day) => eventos.filter(e => e.fecha === format(day, 'yyyy-MM-dd'));
-  const openEvento = (day) => { setEventDate(format(day, 'yyyy-MM-dd')); setEventTitle(''); setEventModal(true); };
+  const openEvento = (day, tipo = 'especial') => { setEventDate(format(day, 'yyyy-MM-dd')); setEventTitle(''); setEventTipo(tipo); setEventModal(true); };
   const guardarEvento = async () => {
     if (!eventTitle.trim() || !eventDate) return;
     setSavingEvent(true);
     try {
-      const nuevo = { id: Math.random().toString(36).slice(2, 9), fecha: eventDate, titulo: eventTitle.trim() };
+      const nuevo = { id: Math.random().toString(36).slice(2, 9), fecha: eventDate, titulo: eventTitle.trim(), tipo: eventTipo };
       await db.updateBusiness(currentBusiness.id, { eventos: [...eventos, nuevo] });
       await refreshBusiness();
       setEventTitle('');
@@ -94,29 +94,7 @@ export default function CalendarHub() {
     } finally {
       setLoading(false);
     }
-    // Contador/racha: publicaciones marcadas como publicadas, mes a mes.
-    db.getPublicacionesStats(currentBusiness.id).then(setPubStats).catch(() => {});
   };
-
-  // Resumen de publicaciones (para el widget de racha). Cuenta solo las marcadas
-  // como PUBLISHED, agrupadas por mes de su fecha.
-  const resumenPub = (() => {
-    const pub = (pubStats || []).filter(p => p.status === 'PUBLISHED');
-    const byMonth = {};
-    pub.forEach(p => { const k = format(new Date(p.fecha), 'yyyy-MM'); byMonth[k] = (byMonth[k] || 0) + 1; });
-    const kVisto = format(currentDate, 'yyyy-MM');
-    const kPasado = format(subMonths(currentDate, 1), 'yyyy-MM');
-    // Racha: meses consecutivos con al menos una publicada, terminando en el mes
-    // real actual; si este aún no tiene, arranca en el más reciente con actividad.
-    let racha = 0;
-    let cursor = new Date();
-    if (!byMonth[format(cursor, 'yyyy-MM')]) {
-      const keys = Object.keys(byMonth).sort();
-      cursor = keys.length ? new Date(keys[keys.length - 1] + '-01T12:00:00') : null;
-    }
-    while (cursor && byMonth[format(cursor, 'yyyy-MM')]) { racha++; cursor = subMonths(cursor, 1); }
-    return { mesVisto: byMonth[kVisto] || 0, mesPasado: byMonth[kPasado] || 0, total: pub.length, racha };
-  })();
 
   const handleCreatePostInSlot = (day) => {
     setSelectedSlot(day);
@@ -225,6 +203,28 @@ export default function CalendarHub() {
     navigate(`/n/${currentBusiness.id}/post/${newPosts[0].id}`);
   };
 
+  // Crea una publicación EN BLANCO (contenido propio del usuario) y abre el editor.
+  const handleCrearManual = async () => {
+    let grid = await db.getGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    if (!grid) {
+      const gridsCount = await db.countGrids(currentBusiness.id);
+      if (!puedeCrearMes(profile, gridsCount)) { setIsInspirationOpen(false); setUpsell(true); return; }
+      grid = await db.createGrid(currentBusiness.id, currentDate.getMonth() + 1, currentDate.getFullYear());
+    }
+    const newPosts = await db.createPosts([{
+      grid_id: grid.id,
+      fecha: selectedSlot ? selectedSlot.toISOString() : new Date().toISOString(),
+      pilar: 'General',
+      pilar_tipo: 'educacion',
+      formato: 'Publicación',
+      canal: est.canalPrincipal || 'Instagram',
+      gancho: 'Mi publicación',
+      hora: 'mediodia'
+    }]);
+    setIsInspirationOpen(false);
+    navigate(`/n/${currentBusiness.id}/post/${newPosts[0].id}`);
+  };
+
   // Color de fondo suave por tipo de pilar para las etiquetas
   const pilarChip = (tipo) => {
     const map = {
@@ -259,8 +259,11 @@ export default function CalendarHub() {
                 {format(day, 'd')}
               </span>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => openEvento(cloneDay)} title="Marcar fecha especial" className="p-1 text-amber-500 hover:bg-amber-50 rounded-lg">
+                <button onClick={() => openEvento(cloneDay, 'especial')} title="Marcar fecha especial" className="p-1 text-amber-500 hover:bg-amber-50 rounded-lg">
                   <SafeIcon name="Star" className="w-4 h-4" />
+                </button>
+                <button onClick={() => openEvento(cloneDay, 'promo')} title="Marcar promoción" className="p-1 text-pink-500 hover:bg-pink-50 rounded-lg">
+                  <SafeIcon name="Tag" className="w-4 h-4" />
                 </button>
                 <button onClick={() => handleCreatePostInSlot(cloneDay)} title="Crear contenido" className="p-1 text-primary hover:bg-primary/5 rounded-lg">
                   <SafeIcon name="PlusCircle" className="w-4 h-4" />
@@ -268,13 +271,16 @@ export default function CalendarHub() {
               </div>
             </div>
             <div className="space-y-1">
-              {eventosDelDia(cloneDay).map(ev => (
-                <div key={ev.id} className="text-[10px] px-2 py-1 rounded-lg bg-amber-100/80 text-amber-700 font-medium flex items-center gap-1 group/ev">
-                  <SafeIcon name="Star" className="w-2.5 h-2.5 shrink-0" />
+              {eventosDelDia(cloneDay).map(ev => {
+                const esPromo = ev.tipo === 'promo';
+                return (
+                <div key={ev.id} className={cn("text-[10px] px-2 py-1 rounded-lg font-medium flex items-center gap-1 group/ev", esPromo ? "bg-pink-100/80 text-pink-700" : "bg-amber-100/80 text-amber-700")}>
+                  <SafeIcon name={esPromo ? 'Tag' : 'Star'} className="w-2.5 h-2.5 shrink-0" />
                   <span className="truncate flex-1">{ev.titulo}</span>
-                  <button onClick={() => eliminarEvento(ev.id)} className="opacity-0 group-hover/ev:opacity-100 text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-2.5 h-2.5" /></button>
+                  <button onClick={() => eliminarEvento(ev.id)} className={cn("opacity-0 group-hover/ev:opacity-100 hover:text-red-500", esPromo ? "text-pink-500" : "text-amber-500")}><SafeIcon name="X" className="w-2.5 h-2.5" /></button>
                 </div>
-              ))}
+                );
+              })}
               {dayPosts.map(post => (
                 <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
                   <p className="font-medium text-gray-800 line-clamp-2 leading-tight flex items-start gap-1">
@@ -322,14 +328,20 @@ export default function CalendarHub() {
                 </span>
                 <span className="text-xs text-gray-400 capitalize">{format(fecha, "MMMM", { locale: es })}</span>
                 {isToday(fecha) && <span className="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">HOY</span>}
+                <button onClick={() => handleCreatePostInSlot(fecha)} className="ml-auto text-[11px] text-primary font-semibold flex items-center gap-1 hover:underline">
+                  <SafeIcon name="PlusCircle" className="w-3.5 h-3.5" /> Agregar
+                </button>
               </div>
               <div className="space-y-2">
-                {eventos.filter(e => e.fecha === key).map(ev => (
-                  <div key={ev.id} className="p-2.5 rounded-xl bg-amber-100/80 text-amber-700 text-sm font-medium flex items-center gap-2">
-                    <SafeIcon name="Star" className="w-3.5 h-3.5 shrink-0" /> <span className="flex-1">{ev.titulo}</span>
-                    <button onClick={() => eliminarEvento(ev.id)} className="text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-3.5 h-3.5" /></button>
+                {eventos.filter(e => e.fecha === key).map(ev => {
+                  const esPromo = ev.tipo === 'promo';
+                  return (
+                  <div key={ev.id} className={cn("p-2.5 rounded-xl text-sm font-medium flex items-center gap-2", esPromo ? "bg-pink-100/80 text-pink-700" : "bg-amber-100/80 text-amber-700")}>
+                    <SafeIcon name={esPromo ? 'Tag' : 'Star'} className="w-3.5 h-3.5 shrink-0" /> <span className="flex-1">{ev.titulo}</span>
+                    <button onClick={() => eliminarEvento(ev.id)} className={cn("hover:text-red-500", esPromo ? "text-pink-500" : "text-amber-500")}><SafeIcon name="X" className="w-3.5 h-3.5" /></button>
                   </div>
-                ))}
+                  );
+                })}
                 {byDay[key].map(post => (
                   <div key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)}
                     className={cn("p-3 rounded-xl cursor-pointer border-l-4 shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
@@ -391,59 +403,18 @@ export default function CalendarHub() {
   return (
     // pb-32 en móvil deja aire para la barra inferior y el botón de chat
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen pb-32 lg:pb-12">
-      {currentBusiness?.propuesta_valor && (
-        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-primary/5 to-success/5 border-primary/10">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0"><SafeIcon name="Compass" className="w-5 h-5" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-0.5">Tu propuesta de valor</p>
-              <p className="text-sm text-gray-800 font-medium leading-snug">{currentBusiness.propuesta_valor}</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {est.canalPrincipal && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Send" className="w-3 h-3" /> {est.canalPrincipal}</span>}
-                {est.frecuencia && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-600 border border-gray-200 flex items-center gap-1"><SafeIcon name="Repeat" className="w-3 h-3" /> {est.frecuencia}</span>}
-                <button onClick={() => navigate(`/n/${currentBusiness.id}/ajustes`)} className="text-[10px] px-2 py-0.5 rounded-full bg-white text-primary border border-primary/20 flex items-center gap-1 hover:bg-primary/5"><SafeIcon name="Edit2" className="w-3 h-3" /> Editar estrategia</button>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-      {/* Tip por sector (Fase 1): consejo real curado, personalizable con IA. */}
+      {/* Saludo simple con el nombre (calendario más limpio, sin banner de propuesta). */}
+      <div className="mb-5">
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-gray-900">
+          Hola, {(profile?.name || '').trim().split(' ')[0] || 'emprendedor'} 👋
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Tu parrilla de <span className="font-medium text-gray-700">{currentBusiness?.nombre || 'tu negocio'}</span>. Tus estadísticas están en <button onClick={() => navigate(`/n/${currentBusiness?.id}/ajustes`)} className="text-primary hover:underline font-medium">Ajustes → Resumen</button>.
+        </p>
+      </div>
+
+      {/* Tip por sector (Fase 1): consejo real curado, compacto y con chispa. */}
       {currentBusiness && <TipNegocio business={currentBusiness} />}
-
-      {/* Racha / contador de publicaciones: refuerza el hábito con un número
-          grande y una frase de aliento (no una gráfica corporativa). */}
-      {(posts.length > 0 || resumenPub.total > 0) && (
-        <Card className="p-4 md:p-5 mb-6 bg-gradient-to-r from-alert/5 to-primary/5 border-alert/15">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-alert/10 flex items-center justify-center text-alert shrink-0">
-                <SafeIcon name="Zap" className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-3xl font-heading font-bold text-gray-900 leading-none">
-                  {resumenPub.mesVisto}
-                  <span className="text-sm font-medium text-gray-400"> publicad{resumenPub.mesVisto === 1 ? 'a' : 'as'}</span>
-                </p>
-                <p className="text-xs text-gray-500 capitalize mt-0.5">en {format(currentDate, 'MMMM', { locale: es })}</p>
-              </div>
-            </div>
-
-            {resumenPub.racha >= 2 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 border border-alert/20 text-sm font-bold text-alert">
-                🔥 {resumenPub.racha} meses seguidos
-              </div>
-            )}
-
-            <p className="text-sm text-gray-600 flex-1 min-w-[180px] leading-snug">
-              {resumenPub.mesVisto === 0
-                ? 'Cuando subas un post a tus redes, ábrelo y toca “Ya lo publiqué”. Así llevas la cuenta y no pierdes el ritmo.'
-                : resumenPub.mesVisto > resumenPub.mesPasado
-                  ? `¡Vas mejor que el mes pasado (${resumenPub.mesPasado})! La constancia es lo que mueve el algoritmo. 💪`
-                  : `Llevas ${resumenPub.total} publicad${resumenPub.total === 1 ? 'a' : 'as'} en total. Sigue así, la constancia le gana a la intensidad.`}
-            </p>
-          </div>
-        </Card>
-      )}
 
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div className="flex items-center gap-1.5 md:gap-3">
@@ -459,12 +430,15 @@ export default function CalendarHub() {
             <button onClick={() => setCurrentDate(new Date())} className="text-[11px] text-primary font-medium hover:underline ml-1">Hoy</button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate)}>
-            <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate, 'especial')}>
+            <SafeIcon name="Star" className="w-4 h-4 mr-1.5" /> Fecha
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate, 'promo')}>
+            <SafeIcon name="Tag" className="w-4 h-4 mr-1.5" /> Promoción
           </Button>
           <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
-            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Ideas IA
+            <SafeIcon name="Zap" className="w-4 h-4 mr-1.5" /> Ideas IA
           </Button>
         </div>
       </div>
@@ -493,15 +467,31 @@ export default function CalendarHub() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEventModal(false)} />
           <Card className="relative w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center gap-2"><SafeIcon name="Star" className="w-5 h-5 text-amber-500" /><h3 className="font-heading font-bold text-lg">Fecha especial</h3></div>
-            <p className="text-xs text-gray-500">La IA tendrá en cuenta esta fecha al sugerir ideas y contenido.</p>
+            <div className="flex items-center gap-2">
+              <SafeIcon name={eventTipo === 'promo' ? 'Tag' : 'Star'} className={cn("w-5 h-5", eventTipo === 'promo' ? "text-pink-500" : "text-amber-500")} />
+              <h3 className="font-heading font-bold text-lg">Marcar en el calendario</h3>
+            </div>
+            {/* Selector de tipo: fecha especial o promoción. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEventTipo('especial')} className={cn("flex items-center justify-center gap-1.5 h-10 rounded-xl border text-sm font-medium transition-colors", eventTipo === 'especial' ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500 hover:bg-gray-50")}>
+                <SafeIcon name="Star" className="w-4 h-4" /> Fecha especial
+              </button>
+              <button type="button" onClick={() => setEventTipo('promo')} className={cn("flex items-center justify-center gap-1.5 h-10 rounded-xl border text-sm font-medium transition-colors", eventTipo === 'promo' ? "border-pink-400 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-500 hover:bg-gray-50")}>
+                <SafeIcon name="Tag" className="w-4 h-4" /> Promoción
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {eventTipo === 'promo'
+                ? 'Marca un día de promoción (ej. descuento en un producto). La IA lo usará para crear contenido que la venda.'
+                : 'La IA tendrá en cuenta esta fecha al sugerir ideas y contenido.'}
+            </p>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-600">Fecha</label>
               <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-600">¿Qué pasa ese día?</label>
-              <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Día de la madre, lanzamiento, feria" className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              <label className="text-xs font-medium text-gray-600">{eventTipo === 'promo' ? '¿Qué promoción es?' : '¿Qué pasa ese día?'}</label>
+              <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder={eventTipo === 'promo' ? 'Ej. 20% en tortas, 2x1 en cafés' : 'Ej. Día de la madre, lanzamiento, feria'} className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
             </div>
             {eventos.filter(e => e.fecha === eventDate).length > 0 && (
               <div className="space-y-1.5">
@@ -527,7 +517,7 @@ export default function CalendarHub() {
         titulo="Planea más meses con Mensual"
         mensaje="El plan gratis incluye la parrilla de 1 mes. Mejora a Mensual para crear la parrilla de todos los meses que quieras."
       />
-      <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} />
+      <InspirationPanel isOpen={isInspirationOpen} onClose={() => setIsInspirationOpen(false)} onIdeaSelected={handleIdeaSelected} onCrearManual={handleCrearManual} />
       <WizardAgent context="calendar" diasLibres={diasLibres} onAddIdea={handleAddIdeaFromAgent} historias={historiasBank} />
     </div>
   );

@@ -46,7 +46,8 @@ export const buildSystemPrompt = (biz) => `
     - Tu vocabulario (palabras/expresiones que el dueño SÍ usa; intégralas con naturalidad): ${biz?.palabras_propias || 'no especificado'}
     - Palabras/expresiones PROHIBIDAS (nunca las uses): ${biz?.palabras_prohibidas || 'ninguna'}
     - Canales de venta (úsalos como CTA cuando sea contenido de venta, NO inventes links): WhatsApp ${biz?.whatsapp || 'no'}, catálogo ${biz?.link_catalogo || 'no'}, link de pago ${biz?.link_pago || 'no'}, web ${biz?.link_web || 'no'}
-    - Fechas especiales marcadas (tenlas MUY en cuenta para ideación y contenido): ${(biz?.eventos && biz.eventos.length) ? biz.eventos.map(ev => ev.fecha + ' ' + ev.titulo).join('; ') : 'ninguna'}
+    - Fechas especiales marcadas (tenlas MUY en cuenta para ideación y contenido): ${(() => { const ev = (biz?.eventos || []).filter(e => e.tipo !== 'promo'); return ev.length ? ev.map(e => e.fecha + ' ' + e.titulo).join('; ') : 'ninguna'; })()}
+    - PROMOCIONES marcadas (días con oferta; crea contenido que las anuncie y venda, con un CTA claro, en esas fechas): ${(() => { const pr = (biz?.eventos || []).filter(e => e.tipo === 'promo'); return pr.length ? pr.map(e => e.fecha + ' ' + e.titulo).join('; ') : 'ninguna'; })()}
     - MATERIAL REAL APORTADO POR EL DUEÑO (historias, decisiones, casos y datos verdaderos; úsalo como PRIMERA fuente de ideas, ejemplos y ángulos; NUNCA lo contradigas ni inventes por encima de esto): ${(Array.isArray(biz?.historias) && biz.historias.length) ? biz.historias.map(h => `• ${typeof h === 'string' ? h : h.texto}`).join('\n    ') : 'aún no hay; no inventes, invita a aportarlo cuando haga falta'}
 
     VOZ DE MARCA (OBLIGATORIA): tiene prioridad sobre cualquier fórmula de marketing o estilo de escritura. Si hay conflicto entre una práctica de copywriting y la voz del dueño, prevalece la voz del dueño. Nunca neutralices, estandarices ni corporativices la voz proporcionada.

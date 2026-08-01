@@ -219,6 +219,21 @@ export const db = {
     return data || [];
   },
 
+  // Publica directo en Instagram vía la Edge Function (usa el token de secreto).
+  async publicarInstagram(imageUrl, caption) {
+    const { data, error } = await supabase.functions.invoke('publicar-instagram', { body: { imageUrl, caption } });
+    if (error) throw new Error(error.message || 'No se pudo publicar en Instagram.');
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+
+  // Broadcast de aviso in-app a todos los usuarios (solo admin). Devuelve {sent}.
+  async adminBroadcast(title, message) {
+    const { data, error } = await supabase.rpc('admin_broadcast_notification', { p_title: title, p_message: message });
+    if (error) throw new Error(error.message || 'No se pudo enviar el aviso.');
+    return data;
+  },
+
   // --- Redes sociales (andamiaje para publicar en IG/FB) ---
   // No selecciona access_token: ese secreto nunca debe llegar al navegador.
   async getSocialAccounts(businessId) {

@@ -6,6 +6,8 @@ import { db } from '../lib/db';
 import { Button, Card, Input, Textarea, Label, Badge } from '../components/ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
+import { format, subMonths } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // ---- Normalizadores (los campos del wizard vienen como jsonb anidado) ----
 const normEstrategia = (e) => {
@@ -75,6 +77,9 @@ export default function Settings() {
     notify_via_app: true
   });
 
+  // Resumen de publicaciones (dashboard del usuario).
+  const [pubStats, setPubStats] = useState([]);
+
   // Redes sociales (andamiaje). Estado por plataforma + usuario que escribe.
   const [socialAccounts, setSocialAccounts] = useState([]);
   const [socialUser, setSocialUser] = useState({ instagram: '', facebook: '' });
@@ -139,8 +144,32 @@ export default function Settings() {
       })));
       loadReminderSettings();
       loadSocial();
+      db.getPublicacionesStats(currentBusiness.id).then(setPubStats).catch(() => {});
     }
   }, [currentBusiness]);
+
+  // Resumen de publicaciones publicadas (por mes) para el dashboard.
+  const resumenPub = (() => {
+    const pub = (pubStats || []).filter(p => p.status === 'PUBLISHED');
+    const byMonth = {};
+    pub.forEach(p => { const k = format(new Date(p.fecha), 'yyyy-MM'); byMonth[k] = (byMonth[k] || 0) + 1; });
+    const hoy = new Date();
+    const kEste = format(hoy, 'yyyy-MM');
+    const kPasado = format(subMonths(hoy, 1), 'yyyy-MM');
+    let racha = 0; let cursor = new Date();
+    if (!byMonth[format(cursor, 'yyyy-MM')]) {
+      const keys = Object.keys(byMonth).sort();
+      cursor = keys.length ? new Date(keys[keys.length - 1] + '-01T12:00:00') : null;
+    }
+    while (cursor && byMonth[format(cursor, 'yyyy-MM')]) { racha++; cursor = subMonths(cursor, 1); }
+    // Últimos 6 meses para una mini-gráfica.
+    const ultimos = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(hoy, i);
+      ultimos.push({ label: format(d, 'MMM', { locale: es }), count: byMonth[format(d, 'yyyy-MM')] || 0 });
+    }
+    return { esteMes: byMonth[kEste] || 0, mesPasado: byMonth[kPasado] || 0, total: pub.length, racha, ultimos };
+  })();
 
   const loadReminderSettings = async () => {
     try {
@@ -282,11 +311,54 @@ export default function Settings() {
       </div>
 
       <div className="flex gap-1 bg-white/50 backdrop-blur border border-white/60 p-1 rounded-2xl w-fit">
+        {tab('resumen', 'Resumen')}
         {tab('general', 'General')}
         {tab('estrategia', 'Estrategia')}
         {tab('redes', 'Redes')}
         {tab('reminders', 'Recordatorios')}
       </div>
+
+      {activeTab === 'resumen' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-4">
+              <p className="text-3xl font-heading font-bold text-primary leading-none">{resumenPub.esteMes}</p>
+              <p className="text-xs text-gray-500 mt-1">Publicadas este mes</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-3xl font-heading font-bold text-gray-900 leading-none">{resumenPub.mesPasado}</p>
+              <p className="text-xs text-gray-500 mt-1">El mes pasado</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-3xl font-heading font-bold text-alert leading-none">{resumenPub.racha} 🔥</p>
+              <p className="text-xs text-gray-500 mt-1">Meses seguidos</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-3xl font-heading font-bold text-gray-900 leading-none">{resumenPub.total}</p>
+              <p className="text-xs text-gray-500 mt-1">En total</p>
+            </Card>
+          </div>
+
+          <Card className="p-5">
+            <h3 className="font-heading font-bold text-lg mb-4">Tus últimos 6 meses</h3>
+            <div className="flex items-end gap-2 h-32">
+              {resumenPub.ultimos.map((m, i) => {
+                const max = Math.max(1, ...resumenPub.ultimos.map(x => x.count));
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
+                    <span className="text-[11px] font-bold text-gray-600">{m.count}</span>
+                    <div className="w-full rounded-t bg-gradient-to-t from-primary to-[#8B5CF6] min-h-[3px] transition-all" style={{ height: `${(m.count / max) * 100}%` }} />
+                    <span className="text-[10px] text-gray-400 capitalize">{m.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              Contamos las publicaciones que marcas como <b>“Ya lo publiqué”</b> en el editor. La constancia le gana a la intensidad.
+            </p>
+          </Card>
+        </div>
+      )}
 
       {activeTab === 'redes' && (
         <div className="space-y-4">
