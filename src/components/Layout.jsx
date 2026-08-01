@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import BusinessSwitcher from './BusinessSwitcher';
 import NotificationCenter from './NotificationCenter';
 import SmoothTabBar from './SmoothTabBar';
+import PWAInstallPrompt from './PWAInstallPrompt';
 
 export default function Layout() {
   const { user, profile, currentBusiness, logout } = useAuth();
@@ -72,6 +73,7 @@ export default function Layout() {
         </div>
       </main>
       <SmoothTabBar items={navItems} />
+      <PWAInstallPrompt />
     </div>
   );
 }
