@@ -51,4 +51,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-floaty { animation: floaty 6s ease-in-out infinite; }
-.animate-fadeup { animation: fadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* Sin 'both': dejar el fill-mode haría que el transform final (translateY(0))
+   persista y cree un containing block, rompiendo el position:fixed de los hijos
+   (agente flotante, modales). Sin él, tras animar el transform vuelve a none. */
+.animate-fadeup { animation: fadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1); }

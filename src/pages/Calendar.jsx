@@ -27,6 +27,7 @@ export default function CalendarHub() {
   const [eventModal, setEventModal] = useState(false);
   const [eventDate, setEventDate] = useState('');
   const [eventTitle, setEventTitle] = useState('');
+  const [eventTipo, setEventTipo] = useState('especial'); // 'especial' | 'promo'
   const [savingEvent, setSavingEvent] = useState(false);
   const [upsell, setUpsell] = useState(false);
   const [generandoMes, setGenerandoMes] = useState(false);
@@ -43,12 +44,12 @@ export default function CalendarHub() {
 
   const eventos = Array.isArray(currentBusiness?.eventos) ? currentBusiness.eventos : [];
   const eventosDelDia = (day) => eventos.filter(e => e.fecha === format(day, 'yyyy-MM-dd'));
-  const openEvento = (day) => { setEventDate(format(day, 'yyyy-MM-dd')); setEventTitle(''); setEventModal(true); };
+  const openEvento = (day, tipo = 'especial') => { setEventDate(format(day, 'yyyy-MM-dd')); setEventTitle(''); setEventTipo(tipo); setEventModal(true); };
   const guardarEvento = async () => {
     if (!eventTitle.trim() || !eventDate) return;
     setSavingEvent(true);
     try {
-      const nuevo = { id: Math.random().toString(36).slice(2, 9), fecha: eventDate, titulo: eventTitle.trim() };
+      const nuevo = { id: Math.random().toString(36).slice(2, 9), fecha: eventDate, titulo: eventTitle.trim(), tipo: eventTipo };
       await db.updateBusiness(currentBusiness.id, { eventos: [...eventos, nuevo] });
       await refreshBusiness();
       setEventTitle('');
@@ -259,8 +260,11 @@ export default function CalendarHub() {
                 {format(day, 'd')}
               </span>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => openEvento(cloneDay)} title="Marcar fecha especial" className="p-1 text-amber-500 hover:bg-amber-50 rounded-lg">
+                <button onClick={() => openEvento(cloneDay, 'especial')} title="Marcar fecha especial" className="p-1 text-amber-500 hover:bg-amber-50 rounded-lg">
                   <SafeIcon name="Star" className="w-4 h-4" />
+                </button>
+                <button onClick={() => openEvento(cloneDay, 'promo')} title="Marcar promoción" className="p-1 text-pink-500 hover:bg-pink-50 rounded-lg">
+                  <SafeIcon name="Tag" className="w-4 h-4" />
                 </button>
                 <button onClick={() => handleCreatePostInSlot(cloneDay)} title="Crear contenido" className="p-1 text-primary hover:bg-primary/5 rounded-lg">
                   <SafeIcon name="PlusCircle" className="w-4 h-4" />
@@ -268,13 +272,16 @@ export default function CalendarHub() {
               </div>
             </div>
             <div className="space-y-1">
-              {eventosDelDia(cloneDay).map(ev => (
-                <div key={ev.id} className="text-[10px] px-2 py-1 rounded-lg bg-amber-100/80 text-amber-700 font-medium flex items-center gap-1 group/ev">
-                  <SafeIcon name="Star" className="w-2.5 h-2.5 shrink-0" />
+              {eventosDelDia(cloneDay).map(ev => {
+                const esPromo = ev.tipo === 'promo';
+                return (
+                <div key={ev.id} className={cn("text-[10px] px-2 py-1 rounded-lg font-medium flex items-center gap-1 group/ev", esPromo ? "bg-pink-100/80 text-pink-700" : "bg-amber-100/80 text-amber-700")}>
+                  <SafeIcon name={esPromo ? 'Tag' : 'Star'} className="w-2.5 h-2.5 shrink-0" />
                   <span className="truncate flex-1">{ev.titulo}</span>
-                  <button onClick={() => eliminarEvento(ev.id)} className="opacity-0 group-hover/ev:opacity-100 text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-2.5 h-2.5" /></button>
+                  <button onClick={() => eliminarEvento(ev.id)} className={cn("opacity-0 group-hover/ev:opacity-100 hover:text-red-500", esPromo ? "text-pink-500" : "text-amber-500")}><SafeIcon name="X" className="w-2.5 h-2.5" /></button>
                 </div>
-              ))}
+                );
+              })}
               {dayPosts.map(post => (
                 <motion.div layoutId={post.id} key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)} className={cn("text-[10px] p-2 rounded-lg cursor-pointer border-l-4 shadow-sm hover:scale-[1.02] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
                   <p className="font-medium text-gray-800 line-clamp-2 leading-tight flex items-start gap-1">
@@ -322,14 +329,20 @@ export default function CalendarHub() {
                 </span>
                 <span className="text-xs text-gray-400 capitalize">{format(fecha, "MMMM", { locale: es })}</span>
                 {isToday(fecha) && <span className="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">HOY</span>}
+                <button onClick={() => handleCreatePostInSlot(fecha)} className="ml-auto text-[11px] text-primary font-semibold flex items-center gap-1 hover:underline">
+                  <SafeIcon name="PlusCircle" className="w-3.5 h-3.5" /> Agregar
+                </button>
               </div>
               <div className="space-y-2">
-                {eventos.filter(e => e.fecha === key).map(ev => (
-                  <div key={ev.id} className="p-2.5 rounded-xl bg-amber-100/80 text-amber-700 text-sm font-medium flex items-center gap-2">
-                    <SafeIcon name="Star" className="w-3.5 h-3.5 shrink-0" /> <span className="flex-1">{ev.titulo}</span>
-                    <button onClick={() => eliminarEvento(ev.id)} className="text-amber-500 hover:text-red-500"><SafeIcon name="X" className="w-3.5 h-3.5" /></button>
+                {eventos.filter(e => e.fecha === key).map(ev => {
+                  const esPromo = ev.tipo === 'promo';
+                  return (
+                  <div key={ev.id} className={cn("p-2.5 rounded-xl text-sm font-medium flex items-center gap-2", esPromo ? "bg-pink-100/80 text-pink-700" : "bg-amber-100/80 text-amber-700")}>
+                    <SafeIcon name={esPromo ? 'Tag' : 'Star'} className="w-3.5 h-3.5 shrink-0" /> <span className="flex-1">{ev.titulo}</span>
+                    <button onClick={() => eliminarEvento(ev.id)} className={cn("hover:text-red-500", esPromo ? "text-pink-500" : "text-amber-500")}><SafeIcon name="X" className="w-3.5 h-3.5" /></button>
                   </div>
-                ))}
+                  );
+                })}
                 {byDay[key].map(post => (
                   <div key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)}
                     className={cn("p-3 rounded-xl cursor-pointer border-l-4 shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
@@ -459,12 +472,15 @@ export default function CalendarHub() {
             <button onClick={() => setCurrentDate(new Date())} className="text-[11px] text-primary font-medium hover:underline ml-1">Hoy</button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate)}>
-            <SafeIcon name="Star" className="w-4 h-4 mr-2" /> Fecha especial
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate, 'especial')}>
+            <SafeIcon name="Star" className="w-4 h-4 mr-1.5" /> Fecha
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => openEvento(currentDate, 'promo')}>
+            <SafeIcon name="Tag" className="w-4 h-4 mr-1.5" /> Promoción
           </Button>
           <Button variant="outline" size="sm" onClick={() => setIsInspirationOpen(true)} disabled={posts.length === 0}>
-            <SafeIcon name="Zap" className="w-4 h-4 mr-2" /> Ideas IA
+            <SafeIcon name="Zap" className="w-4 h-4 mr-1.5" /> Ideas IA
           </Button>
         </div>
       </div>
@@ -493,15 +509,31 @@ export default function CalendarHub() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEventModal(false)} />
           <Card className="relative w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center gap-2"><SafeIcon name="Star" className="w-5 h-5 text-amber-500" /><h3 className="font-heading font-bold text-lg">Fecha especial</h3></div>
-            <p className="text-xs text-gray-500">La IA tendrá en cuenta esta fecha al sugerir ideas y contenido.</p>
+            <div className="flex items-center gap-2">
+              <SafeIcon name={eventTipo === 'promo' ? 'Tag' : 'Star'} className={cn("w-5 h-5", eventTipo === 'promo' ? "text-pink-500" : "text-amber-500")} />
+              <h3 className="font-heading font-bold text-lg">Marcar en el calendario</h3>
+            </div>
+            {/* Selector de tipo: fecha especial o promoción. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEventTipo('especial')} className={cn("flex items-center justify-center gap-1.5 h-10 rounded-xl border text-sm font-medium transition-colors", eventTipo === 'especial' ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500 hover:bg-gray-50")}>
+                <SafeIcon name="Star" className="w-4 h-4" /> Fecha especial
+              </button>
+              <button type="button" onClick={() => setEventTipo('promo')} className={cn("flex items-center justify-center gap-1.5 h-10 rounded-xl border text-sm font-medium transition-colors", eventTipo === 'promo' ? "border-pink-400 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-500 hover:bg-gray-50")}>
+                <SafeIcon name="Tag" className="w-4 h-4" /> Promoción
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {eventTipo === 'promo'
+                ? 'Marca un día de promoción (ej. descuento en un producto). La IA lo usará para crear contenido que la venda.'
+                : 'La IA tendrá en cuenta esta fecha al sugerir ideas y contenido.'}
+            </p>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-600">Fecha</label>
               <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-600">¿Qué pasa ese día?</label>
-              <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Día de la madre, lanzamiento, feria" className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              <label className="text-xs font-medium text-gray-600">{eventTipo === 'promo' ? '¿Qué promoción es?' : '¿Qué pasa ese día?'}</label>
+              <input value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder={eventTipo === 'promo' ? 'Ej. 20% en tortas, 2x1 en cafés' : 'Ej. Día de la madre, lanzamiento, feria'} className="w-full h-11 rounded-xl border border-white/70 bg-white/70 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
             </div>
             {eventos.filter(e => e.fecha === eventDate).length > 0 && (
               <div className="space-y-1.5">

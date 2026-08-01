@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Input, Card, Badge } from './ui/Components';
 import SafeIcon from '../common/SafeIcon';
 import { cn } from '../lib/utils';
@@ -111,8 +112,10 @@ Habla claro y sencillo: el usuario suele ser un microempresario sin tiempo y sin
 
   const cleanText = (text) => text.replace(/\[COPY\]|\[\/COPY\]/g, '').trim();
 
-  return (
-    <div className={cn("fixed right-4 md:right-6 z-40 transition-all duration-300 bottom-20 lg:bottom-6", isOpen ? "w-80 md:w-96" : "w-14 h-14")}>
+  // Se monta en document.body con un portal: así el position:fixed es siempre
+  // relativo a la pantalla y no lo rompe ningún ancestro con transform.
+  return createPortal((
+    <div className={cn("fixed right-4 md:right-6 z-50 transition-all duration-300 bottom-20 lg:bottom-6", isOpen ? "w-80 md:w-96" : "w-14 h-14")}>
       <AnimatePresence>
         {isOpen ? (
           <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
@@ -212,5 +215,5 @@ Habla claro y sencillo: el usuario suele ser un microempresario sin tiempo y sin
         )}
       </AnimatePresence>
     </div>
-  );
+  ), document.body);
 }
