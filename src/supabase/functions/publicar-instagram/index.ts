@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
     const createRes = await fetch(`${GRAPH}/${igUser}/media`, { method: "POST", body: createBody });
     const createData = await createRes.json();
     if (!createRes.ok || !createData.id) {
+      console.error("IG create error:", JSON.stringify(createData));
       return json({ error: createData?.error?.message || "No se pudo crear la publicación en Instagram." }, 502);
     }
 
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
     const pubRes = await fetch(`${GRAPH}/${igUser}/media_publish`, { method: "POST", body: pubBody });
     const pubData = await pubRes.json();
     if (!pubRes.ok || !pubData.id) {
+      console.error("IG publish error:", JSON.stringify(pubData));
       return json({ error: pubData?.error?.message || "El contenedor se creó pero no se pudo publicar." }, 502);
     }
 
