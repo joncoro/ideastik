@@ -398,7 +398,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     if (!src || src.startsWith('data:')) { setPubIgMsg({ tipo: 'error', texto: 'Genera o guarda el arte del post primero (Instagram necesita una imagen con URL pública).' }); return; }
     setPubIg(true); setPubIgMsg(null);
     try {
-      const res = await db.publicarInstagram(src, (copy || post?.gancho || '').trim());
+      const res = await db.publicarInstagram(src, (copy || post?.gancho || '').trim(), currentBusiness?.id);
       setPubIgMsg({ tipo: 'ok', texto: `¡Publicado en Instagram! (id ${res.id})` });
     } catch (e) {
       setPubIgMsg({ tipo: 'error', texto: e.message || 'No se pudo publicar.' });
@@ -689,14 +689,24 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                   <Badge variant="primary" className="text-[9px] uppercase ml-auto">Asistido</Badge>
                 </p>
                 <div className="flex gap-2">
-                  {redes.map(r => (
-                    <Button key={r.platform} variant="outline" className="flex-1" onClick={() => publicarAsistido(r.platform)}>
-                      <SafeIcon name={r.platform === 'instagram' ? 'Instagram' : 'Facebook'} className="w-4 h-4 mr-1.5" />
-                      {r.platform === 'instagram' ? 'Instagram' : 'Facebook'}
-                    </Button>
-                  ))}
+                  {redes.map(r => {
+                    const igDirecto = r.platform === 'instagram' && r.status === 'conectada';
+                    return (
+                      <Button
+                        key={r.platform}
+                        variant={igDirecto ? 'primary' : 'outline'}
+                        className="flex-1"
+                        isLoading={igDirecto && pubIg}
+                        onClick={() => igDirecto ? handlePublicarIgDirecto() : publicarAsistido(r.platform)}
+                      >
+                        <SafeIcon name={r.platform === 'instagram' ? 'Instagram' : 'Facebook'} className="w-4 h-4 mr-1.5" />
+                        {r.platform === 'instagram' ? (igDirecto ? 'Publicar en IG' : 'Instagram') : 'Facebook'}
+                      </Button>
+                    );
+                  })}
                 </div>
                 {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
+                {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
                 <p className="text-[10px] text-gray-400 leading-snug">
                   Publicación directa: próximamente. Por ahora te dejamos la imagen y el texto listos para pegar.
                 </p>
