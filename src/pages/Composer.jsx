@@ -388,6 +388,25 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     setPublishMsg(`Copiamos el texto${bajo ? ' y descargamos la imagen' : ''}. En ${nombre}, crea la publicación, elige ${bajo ? 'la imagen descargada' : 'tu imagen'} y pega el texto (ya está copiado).`);
   };
 
+  // Prueba de publicación DIRECTA a Instagram (admin). Usa la Edge Function con
+  // el token de secreto; requiere una imagen (IG publica por URL pública).
+  const [pubIg, setPubIg] = useState(false);
+  const [pubIgMsg, setPubIgMsg] = useState(null); // { tipo, texto }
+  const handlePublicarIgDirecto = async () => {
+    if (pubIg) return;
+    const src = imagenPreview || post?.image_url;
+    if (!src || src.startsWith('data:')) { setPubIgMsg({ tipo: 'error', texto: 'Genera o guarda el arte del post primero (Instagram necesita una imagen con URL pública).' }); return; }
+    setPubIg(true); setPubIgMsg(null);
+    try {
+      const res = await db.publicarInstagram(src, (copy || post?.gancho || '').trim());
+      setPubIgMsg({ tipo: 'ok', texto: `¡Publicado en Instagram! (id ${res.id})` });
+    } catch (e) {
+      setPubIgMsg({ tipo: 'error', texto: e.message || 'No se pudo publicar.' });
+    } finally {
+      setPubIg(false);
+    }
+  };
+
   // Convierte la foto (subida o guardada) en un File para adjuntarla al compartir.
   const imagenComoFile = async () => {
     const src = imagenPreview || post?.image_url;
@@ -680,6 +699,26 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
                 <p className="text-[10px] text-gray-400 leading-snug">
                   Publicación directa: próximamente. Por ahora te dejamos la imagen y el texto listos para pegar.
+                </p>
+              </Card>
+            )}
+
+            {/* Prueba de publicación DIRECTA a Instagram (solo admin, mientras se
+                integra Meta para todos). */}
+            {profile?.is_admin && (
+              <Card className="p-4 space-y-2.5 border-primary/20 bg-primary/[0.02]">
+                <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <SafeIcon name="Instagram" className="w-3.5 h-3.5 text-primary" /> Instagram directo
+                  <Badge variant="primary" className="text-[9px] uppercase ml-auto">Prueba admin</Badge>
+                </p>
+                <Button className="w-full" onClick={handlePublicarIgDirecto} isLoading={pubIg}>
+                  <SafeIcon name="Send" className="w-4 h-4 mr-2" /> {pubIg ? 'Publicando…' : 'Publicar ahora en Instagram'}
+                </Button>
+                {pubIgMsg && (
+                  <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>
+                )}
+                <p className="text-[10px] text-gray-400 leading-snug">
+                  Publica con la cuenta conectada en Meta (secreto del servidor). Necesita que el post tenga imagen generada/guardada.
                 </p>
               </Card>
             )}
