@@ -495,6 +495,33 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                   <span className="font-bold text-gray-700">Lo que veo en tu foto: </span>{descripcionImagen}
                 </div>
               )}
+              {/* Retoque/ajuste de la foto cargada, aquí mismo. */}
+              {imagenPreview && (
+                <div className="space-y-2 pt-1 border-t border-primary/10">
+                  <p className="text-[11px] font-bold text-gray-600 flex items-center gap-1.5 pt-1">
+                    <SafeIcon name="Feather" className="w-3 h-3 text-success" /> ¿Quieres mejorarla o cambiarle algo?
+                  </p>
+                  <Textarea
+                    value={instruccionArte}
+                    onChange={e => setInstruccionArte(e.target.value)}
+                    className="min-h-[52px] text-sm bg-white"
+                    placeholder="Opcional: qué cambiar (ej. 'quita el fondo', 'más luz', 'fondo blanco'). Vacío = mejora general."
+                  />
+                  <Button size="sm" variant="success" className="w-full" onClick={handleAjustarImagen} isLoading={generandoArte === 'ajustar'} disabled={!!generandoArte}>
+                    <SafeIcon name="Feather" className="w-3.5 h-3.5 mr-1.5" />
+                    {generandoArte === 'ajustar' ? 'Trabajando en tu foto…' : (instruccionArte.trim() ? 'Aplicar cambios a mi foto' : 'Retocar y mejorar mi foto')}
+                  </Button>
+                  {errorArte && <p className="text-[11px] text-red-500">{errorArte}</p>}
+                  {sinCreditos && (
+                    <Button size="sm" variant="outline" className="w-full" onClick={() => navigate('/cuenta')}>
+                      <SafeIcon name="Zap" className="w-3.5 h-3.5 mr-1.5" /> Conseguir más créditos
+                    </Button>
+                  )}
+                  <p className="text-[10px] text-gray-400">
+                    {profile?.plan === 'MENSUAL' ? 'Incluido en tu plan Mensual.' : `Cada cambio usa 1 crédito. Te quedan ${profile?.credits ?? 0}.`}
+                  </p>
+                </div>
+              )}
             </Card>
 
             {/* Guion de producción: qué grabar / qué láminas / ideas visuales. */}
