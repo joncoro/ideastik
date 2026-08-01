@@ -219,6 +219,41 @@ export const db = {
     return data || [];
   },
 
+  // --- Redes sociales (andamiaje para publicar en IG/FB) ---
+  // No selecciona access_token: ese secreto nunca debe llegar al navegador.
+  async getSocialAccounts(businessId) {
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .select('id, business_id, platform, username, status, connected_at, created_at')
+      .eq('business_id', businessId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Registra/actualiza la intención de conexión. Hoy queda 'pendiente' (asistida);
+  // el flujo directo de Meta la pasará a 'conectada' cuando esté aprobado.
+  async conectarRed(businessId, platform, username = null) {
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .upsert(
+        { business_id: businessId, platform, username, status: 'pendiente' },
+        { onConflict: 'business_id,platform' }
+      )
+      .select('id, platform, username, status')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async desconectarRed(businessId, platform) {
+    const { error } = await supabase
+      .from('social_accounts')
+      .update({ status: 'desconectada' })
+      .eq('business_id', businessId)
+      .eq('platform', platform);
+    if (error) throw error;
+  },
+
   // Descuenta 1 crédito por imagen (FREE) o confirma acceso ilimitado (MENSUAL).
   // Lanza error si el usuario FREE se quedó sin créditos.
   async consumirCreditoImagen() {

@@ -32,6 +32,8 @@ export default function Composer() {
   const [historiaGuardada, setHistoriaGuardada] = useState(false);
   const [marcando, setMarcando] = useState(false);
   const [copiadoWpp, setCopiadoWpp] = useState(false);
+  const [redes, setRedes] = useState([]); // cuentas conectadas (IG/FB)
+  const [publishMsg, setPublishMsg] = useState('');
   // Foto → contenido (visión de la IA).
   const [imagenPreview, setImagenPreview] = useState(null);
   const [imagenBase64, setImagenBase64] = useState(null); // foto subida, para retocar
@@ -65,6 +67,9 @@ export default function Composer() {
   useEffect(() => {
     if (currentBusiness?.id) {
       db.getHistorias(currentBusiness.id).then(setHistoriasBank).catch(() => {});
+      db.getSocialAccounts(currentBusiness.id)
+        .then(rs => setRedes(rs.filter(r => r.status !== 'desconectada')))
+        .catch(() => {});
     }
   }, [currentBusiness?.id]);
 
@@ -357,6 +362,32 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
     }
   };
 
+  // Descarga la imagen del post a la galería/descargas (para pegarla en la app).
+  const descargarImagen = async (src, name) => {
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      return true;
+    } catch { return false; }
+  };
+
+  // Publicación asistida (mientras se aprueba la integración directa de Meta):
+  // copia el texto, descarga la imagen y abre la app para pegar y publicar.
+  const publicarAsistido = async (platform) => {
+    const texto = (copy || post?.gancho || '').trim();
+    try { await navigator.clipboard?.writeText(texto); } catch (_) { /* noop */ }
+    const src = imagenPreview || post?.image_url;
+    const bajo = src ? await descargarImagen(src, `post-${post.id}.jpg`) : false;
+    const nombre = platform === 'instagram' ? 'Instagram' : 'Facebook';
+    window.open(platform === 'instagram' ? 'https://www.instagram.com/' : 'https://www.facebook.com/', '_blank');
+    setPublishMsg(`Copiamos el texto${bajo ? ' y descargamos la imagen' : ''}. En ${nombre}, crea la publicación, elige ${bajo ? 'la imagen descargada' : 'tu imagen'} y pega el texto (ya está copiado).`);
+  };
+
   // Convierte la foto (subida o guardada) en un File para adjuntarla al compartir.
   const imagenComoFile = async () => {
     const src = imagenPreview || post?.image_url;
@@ -630,6 +661,28 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 : 'En el celular puedes enviarlo a un contacto o a "Mi estado". (Genera una imagen arriba para compartir foto + leyenda.)'}
               {copiadoWpp && <span className="block text-success font-medium mt-0.5">Copiamos el texto por si necesitas pegarlo como leyenda.</span>}
             </p>
+
+            {/* Publicar en IG/FB (asistido por ahora; directo cuando Meta apruebe). */}
+            {redes.length > 0 && (
+              <Card className="p-4 space-y-2.5">
+                <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                  <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publicar en mis redes
+                  <Badge variant="primary" className="text-[9px] uppercase ml-auto">Asistido</Badge>
+                </p>
+                <div className="flex gap-2">
+                  {redes.map(r => (
+                    <Button key={r.platform} variant="outline" className="flex-1" onClick={() => publicarAsistido(r.platform)}>
+                      <SafeIcon name={r.platform === 'instagram' ? 'Instagram' : 'Facebook'} className="w-4 h-4 mr-1.5" />
+                      {r.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                    </Button>
+                  ))}
+                </div>
+                {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
+                <p className="text-[10px] text-gray-400 leading-snug">
+                  Publicación directa: próximamente. Por ahora te dejamos la imagen y el texto listos para pegar.
+                </p>
+              </Card>
+            )}
 
             <Card className="p-4">
               <p className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-1.5">
