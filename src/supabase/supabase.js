@@ -14,7 +14,9 @@ export default createClient(
   {
     auth: {
       persistSession: true,
-      autoRefreshToken: true
+      autoRefreshToken: true,
+      // Procesa el token del enlace de recuperación de contraseña (llega en el hash).
+      detectSessionInUrl: true
     }
   }
 );
