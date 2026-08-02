@@ -392,6 +392,8 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
   // el token de secreto; requiere una imagen (IG publica por URL pública).
   const [pubIg, setPubIg] = useState(false);
   const [pubIgMsg, setPubIgMsg] = useState(null); // { tipo, texto }
+  // ¿Instagram está conectado? Entonces la publicación es directa (no asistida).
+  const igConectada = redes.some(r => r.platform === 'instagram' && r.status === 'conectada');
   const handlePublicarIgDirecto = async () => {
     if (pubIg) return;
     const src = imagenPreview || post?.image_url;
@@ -681,12 +683,13 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
               {copiadoWpp && <span className="block text-success font-medium mt-0.5">Copiamos el texto por si necesitas pegarlo como leyenda.</span>}
             </p>
 
-            {/* Publicar en IG/FB (asistido por ahora; directo cuando Meta apruebe). */}
+            {/* Publicar en redes. Instagram conectado publica DIRECTO; el resto es
+                asistido (preparamos imagen + texto para pegar). Una sola tarjeta. */}
             {redes.length > 0 && (
               <Card className="p-4 space-y-2.5">
                 <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                   <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publicar en mis redes
-                  <Badge variant="primary" className="text-[9px] uppercase ml-auto">Asistido</Badge>
+                  <Badge variant="primary" className="text-[9px] uppercase ml-auto">{igConectada ? 'Directo' : 'Asistido'}</Badge>
                 </p>
                 <div className="flex gap-2">
                   {redes.map(r => {
@@ -700,7 +703,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                         onClick={() => igDirecto ? handlePublicarIgDirecto() : publicarAsistido(r.platform)}
                       >
                         <SafeIcon name={r.platform === 'instagram' ? 'Instagram' : 'Facebook'} className="w-4 h-4 mr-1.5" />
-                        {r.platform === 'instagram' ? (igDirecto ? 'Publicar en IG' : 'Instagram') : 'Facebook'}
+                        {r.platform === 'instagram' ? (igDirecto ? 'Publicar en Instagram' : 'Instagram') : 'Facebook'}
                       </Button>
                     );
                   })}
@@ -708,14 +711,16 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
                 {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
                 <p className="text-[10px] text-gray-400 leading-snug">
-                  Publicación directa: próximamente. Por ahora te dejamos la imagen y el texto listos para pegar.
+                  {igConectada
+                    ? 'Instagram se publica directo desde aquí (necesita una imagen guardada). Las demás redes quedan asistidas: te dejamos la imagen y el texto listos para pegar.'
+                    : 'Por ahora es asistido: te dejamos la imagen y el texto listos para pegar. Conecta Instagram en Ajustes → Redes para publicar directo.'}
                 </p>
               </Card>
             )}
 
-            {/* Prueba de publicación DIRECTA a Instagram (solo admin, mientras se
-                integra Meta para todos). */}
-            {profile?.is_admin && (
+            {/* Respaldo admin: publicar con el token de secreto del servidor cuando
+                aún no hay una cuenta de Instagram conectada al negocio. */}
+            {profile?.is_admin && !igConectada && (
               <Card className="p-4 space-y-2.5 border-primary/20 bg-primary/[0.02]">
                 <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                   <SafeIcon name="Instagram" className="w-3.5 h-3.5 text-primary" /> Instagram directo
@@ -728,7 +733,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                   <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>
                 )}
                 <p className="text-[10px] text-gray-400 leading-snug">
-                  Publica con la cuenta conectada en Meta (secreto del servidor). Necesita que el post tenga imagen generada/guardada.
+                  Publica con la cuenta de prueba (secreto del servidor). Necesita que el post tenga imagen generada/guardada.
                 </p>
               </Card>
             )}
