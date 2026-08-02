@@ -61,17 +61,42 @@ Deno.serve(async (req) => {
       console.error("IG create error:", JSON.stringify(createData));
       return json({ error: createData?.error?.message || "No se pudo crear la publicación en Instagram." }, 502);
     }
+    const creationId = createData.id;
 
-    // 2) publicar
-    const pubBody = new URLSearchParams({ creation_id: createData.id, access_token: token });
-    const pubRes = await fetch(`${GRAPH}/${igUser}/media_publish`, { method: "POST", body: pubBody });
-    const pubData = await pubRes.json();
-    if (!pubRes.ok || !pubData.id) {
-      console.error("IG publish error:", JSON.stringify(pubData));
-      return json({ error: pubData?.error?.message || "El contenedor se creó pero no se pudo publicar." }, 502);
+    // 2) esperar a que Meta termine de procesar el contenedor.
+    // Publicar antes de tiempo da "Media ID is not available" (subcódigo 2207027).
+    // Sondeamos status_code hasta FINISHED (o ERROR) con un tope de intentos.
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let status = "IN_PROGRESS";
+    for (let i = 0; i < 12; i++) {
+      const stRes = await fetch(`${GRAPH}/${creationId}?fields=status_code,status&access_token=${token}`);
+      const stData = await stRes.json();
+      status = stData.status_code || status;
+      if (status === "FINISHED") break;
+      if (status === "ERROR" || status === "EXPIRED") {
+        console.error("IG container status:", JSON.stringify(stData));
+        return json({ error: stData?.status || "Instagram no pudo procesar la imagen. Verifica que sea un JPG accesible (relación 4:5 a 1.91:1)." }, 502);
+      }
+      await sleep(1500);
+    }
+    if (status !== "FINISHED") {
+      return json({ error: "Instagram está tardando en procesar la imagen. Espera unos segundos y vuelve a intentar." }, 504);
     }
 
-    return json({ ok: true, id: pubData.id });
+    // 3) publicar (con un reintento por si el estado tarda un instante más en propagar).
+    let pubData: Record<string, unknown> = {};
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const pubBody = new URLSearchParams({ creation_id: creationId, access_token: token });
+      const pubRes = await fetch(`${GRAPH}/${igUser}/media_publish`, { method: "POST", body: pubBody });
+      pubData = await pubRes.json();
+      if (pubRes.ok && pubData.id) return json({ ok: true, id: pubData.id });
+      const sub = (pubData as any)?.error?.error_subcode;
+      // 2207027 = "Media ID is not available": el contenedor aún no está listo; reintentar.
+      if (sub === 2207027 && attempt < 2) { await sleep(2000); continue; }
+      break;
+    }
+    console.error("IG publish error:", JSON.stringify(pubData));
+    return json({ error: (pubData as any)?.error?.message || "El contenedor se creó pero no se pudo publicar." }, 502);
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);
   }
