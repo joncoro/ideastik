@@ -25,7 +25,7 @@ const TONES = {
 };
 
 export default function SocialShareButton({
-  label = 'Publicar / Compartir',
+  label = 'Publicar en redes',
   items = [],
   disabled = false,
   className,
@@ -64,14 +64,24 @@ export default function SocialShareButton({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeInOut' }}
             className={cn(
-              'w-full h-12 rounded-2xl inline-flex items-center justify-center gap-2',
+              'w-full h-12 rounded-2xl inline-flex items-center justify-center gap-2.5',
               'bg-gradient-to-br from-primary to-[#8B5CF6] text-white font-medium text-sm',
               'shadow-lg shadow-primary/25 transition-all duration-200 active:scale-[0.98]',
               'disabled:opacity-50 disabled:pointer-events-none'
             )}
           >
-            <SafeIcon name="Share2" className="w-4 h-4" />
+            <SafeIcon name="Send" className="w-4 h-4" />
             {label}
+            {/* Muestra las redes disponibles para que quede claro qué hace el botón. */}
+            {items.length > 0 && (
+              <span className="flex items-center gap-1 ml-0.5">
+                {items.map((item) => (
+                  <span key={item.key || item.label} className="w-5 h-5 rounded-full bg-white/25 flex items-center justify-center">
+                    <SafeIcon name={item.icon} className="w-3 h-3" />
+                  </span>
+                ))}
+              </span>
+            )}
           </motion.button>
         ) : (
           <motion.div
