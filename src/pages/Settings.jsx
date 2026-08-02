@@ -379,7 +379,10 @@ export default function Settings() {
         <div className="space-y-4">
           <Card className="p-4 bg-primary/[0.03] border-primary/15">
             <p className="text-sm text-gray-600 leading-relaxed">
-              Conecta tus redes para tenerlo listo. Hoy la publicación es <b>asistida</b> (te preparamos la foto y el texto y abres la app). La <b>publicación directa</b> desde Ideastik se activará apenas Meta apruebe la integración, sin que tengas que hacer nada más.
+              Conecta <b>Instagram</b> (cuenta profesional) y podrás <b>publicar directo</b> desde el editor. Las demás redes quedan en modo <b>asistido</b>: te preparamos la foto y el texto y abres la app para pegar.
+            </p>
+            <p className="text-[11px] text-gray-400 mt-2">
+              Al conectar aceptas nuestra <a href="/privacidad" target="_blank" rel="noopener" className="text-primary hover:underline">Política de Privacidad</a>. Puedes retirar el acceso cuando quieras; consulta la <a href="/eliminacion-datos" target="_blank" rel="noopener" className="text-primary hover:underline">eliminación de datos</a>.
             </p>
           </Card>
 

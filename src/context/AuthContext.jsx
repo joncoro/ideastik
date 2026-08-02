@@ -9,6 +9,8 @@ export function AuthProvider({ children }) {
   const [currentBusiness, setCurrentBusiness] = useState(null);
   const [allBusinesses, setAllBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Activo cuando el usuario vuelve del enlace de "recuperar contraseña".
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const loadUserData = async (userId) => {
     try {
@@ -57,7 +59,9 @@ export function AuthProvider({ children }) {
     });
 
     // Escuchar cambios de auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Llega desde el enlace del correo: mostramos el formulario de nueva contraseña.
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
       if (session) {
         if (!user || user.id !== session.user.id) {
           setUser(session.user);
@@ -96,6 +100,21 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('ideastik_current_biz_id');
   };
 
+  // Envía el correo con el enlace para restablecer la contraseña.
+  const sendPasswordReset = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    if (error) throw error;
+  };
+
+  // Fija la nueva contraseña (requiere la sesión de recuperación activa).
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setRecoveryMode(false);
+  };
+
   const switchBusiness = (biz) => {
     setCurrentBusiness(biz);
     // Mantener allBusinesses en sync (incluye negocios recién creados en el wizard)
@@ -131,9 +150,10 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, currentBusiness, allBusinesses, 
+      user, profile, currentBusiness, allBusinesses,
       setCurrentBusiness, switchBusiness, login, signUp, logout,
-      loading, refreshBusiness, refreshProfile
+      loading, refreshBusiness, refreshProfile,
+      recoveryMode, setRecoveryMode, sendPasswordReset, updatePassword
     }}>
       {children}
     </AuthContext.Provider>

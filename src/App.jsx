@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Spinner from './components/ui/Spinner';
+import ResetPasswordModal from './components/ResetPasswordModal';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
@@ -86,6 +87,7 @@ const PublicRoute = ({ children }) => {
 export default function App() {
   return (
     <AuthProvider>
+      <ResetPasswordModal />
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><Spinner /></div>}>
         <Routes>
           <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />

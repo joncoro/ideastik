@@ -5,6 +5,18 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Páginas legales estáticas con URL limpia (deben ir ANTES del fallback SPA).
+# Sirven el HTML directamente para que el crawler de Meta las lea sin ejecutar JS.
+[[redirects]]
+  from = "/privacidad"
+  to = "/privacidad.html"
+  status = 200
+
+[[redirects]]
+  from = "/eliminacion-datos"
+  to = "/eliminacion-datos.html"
+  status = 200
+
 # SPA fallback para React Router
 [[redirects]]
   from = "/*"
