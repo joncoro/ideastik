@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import WizardAgent from '../components/WizardAgent';
+import SocialShareButton from '../components/SocialShareButton';
 
 export default function Composer() {
   const { postId } = useParams();
@@ -671,52 +672,31 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
               />
             </Card>
 
-            {/* Compartir: foto con el copy como leyenda; permite estado o contacto. */}
-            <Button variant="success" className="w-full" onClick={handleCompartirWhatsApp} disabled={!copy && !post.gancho}>
-              <SafeIcon name="MessageCircle" className="w-4 h-4 mr-2" />
-              {(imagenPreview || post.image_url) ? 'Compartir foto + texto por WhatsApp' : 'Compartir por WhatsApp'}
-            </Button>
-            <p className="text-[11px] text-gray-400 -mt-3 text-center leading-snug">
-              {(imagenPreview || post.image_url)
-                ? 'En el celular se abre WhatsApp con la foto y el copy como leyenda. Ahí eliges un contacto o "Mi estado".'
-                : 'En el celular puedes enviarlo a un contacto o a "Mi estado". (Genera una imagen arriba para compartir foto + leyenda.)'}
-              {copiadoWpp && <span className="block text-success font-medium mt-0.5">Copiamos el texto por si necesitas pegarlo como leyenda.</span>}
-            </p>
-
-            {/* Publicar en redes. Instagram conectado publica DIRECTO; el resto es
-                asistido (preparamos imagen + texto para pegar). Una sola tarjeta. */}
-            {redes.length > 0 && (
-              <Card className="p-4 space-y-2.5">
-                <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                  <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publicar en mis redes
-                  <Badge variant="primary" className="text-[9px] uppercase ml-auto">{igConectada ? 'Directo' : 'Asistido'}</Badge>
-                </p>
-                <div className="flex gap-2">
-                  {redes.map(r => {
-                    const igDirecto = r.platform === 'instagram' && r.status === 'conectada';
-                    return (
-                      <Button
-                        key={r.platform}
-                        variant={igDirecto ? 'primary' : 'outline'}
-                        className="flex-1"
-                        isLoading={igDirecto && pubIg}
-                        onClick={() => igDirecto ? handlePublicarIgDirecto() : publicarAsistido(r.platform)}
-                      >
-                        <SafeIcon name={r.platform === 'instagram' ? 'Instagram' : 'Facebook'} className="w-4 h-4 mr-1.5" />
-                        {r.platform === 'instagram' ? (igDirecto ? 'Publicar en Instagram' : 'Instagram') : 'Facebook'}
-                      </Button>
-                    );
-                  })}
-                </div>
-                {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
-                {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
-                <p className="text-[10px] text-gray-400 leading-snug">
-                  {igConectada
-                    ? 'Instagram se publica directo desde aquí (necesita una imagen guardada). Las demás redes quedan asistidas: te dejamos la imagen y el texto listos para pegar.'
-                    : 'Por ahora es asistido: te dejamos la imagen y el texto listos para pegar. Conecta Instagram en Ajustes → Redes para publicar directo.'}
-                </p>
-              </Card>
-            )}
+            {/* Publica o comparte esta pieza. Un solo control despliega WhatsApp,
+                Instagram y Facebook. IG conectado publica directo; el resto es
+                asistido (preparamos imagen + texto listos para pegar). */}
+            <Card className="p-4 space-y-2.5">
+              <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publica o comparte esta pieza
+                {igConectada && <Badge variant="primary" className="text-[9px] uppercase ml-auto">IG directo</Badge>}
+              </p>
+              <SocialShareButton
+                disabled={!copy && !post.gancho}
+                items={[
+                  { key: 'whatsapp', icon: 'MessageCircle', label: 'WhatsApp', tone: 'wpp', onSelect: handleCompartirWhatsApp },
+                  { key: 'instagram', icon: 'Instagram', label: igConectada ? 'IG · directo' : 'Instagram', tone: 'ig', loading: pubIg, onSelect: () => (igConectada ? handlePublicarIgDirecto() : publicarAsistido('instagram')) },
+                  { key: 'facebook', icon: 'Facebook', label: 'Facebook', tone: 'fb', onSelect: () => publicarAsistido('facebook') },
+                ]}
+              />
+              {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
+              {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
+              {copiadoWpp && <p className="text-[11px] text-success leading-snug">Copiamos el texto por si necesitas pegarlo como leyenda.</p>}
+              <p className="text-[10px] text-gray-400 leading-snug">
+                {igConectada
+                  ? 'Instagram publica directo desde aquí (necesita una imagen guardada). WhatsApp y Facebook quedan asistidos: preparamos la imagen y el texto para pegar.'
+                  : 'WhatsApp y Facebook son asistidos: preparamos la imagen y el texto listos para pegar. Conecta Instagram en Ajustes → Redes para publicar directo.'}
+              </p>
+            </Card>
 
             {/* Respaldo admin: publicar con el token de secreto del servidor cuando
                 aún no hay una cuenta de Instagram conectada al negocio. */}
