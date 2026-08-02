@@ -46,6 +46,7 @@ export default function Composer() {
   // Ideas estructuradas: guion de producción + variantes de copy para elegir.
   const [ideas, setIdeas] = useState(null);
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
+  const autoIdeasRef = useRef(false); // evita auto-generar ideas más de una vez por post
   // Historia real del dueño → la IA la pule sin inventar.
   const [historia, setHistoria] = useState('');
   const [mejorando, setMejorando] = useState(false);
@@ -161,6 +162,17 @@ Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo
       setGeneratingIdeas(false);
     }
   };
+
+  // Al abrir un post que aún no tiene texto, generamos las ideas automáticamente
+  // (3 variantes + guion) para que la persona vea de inmediato de qué trata, sin
+  // depender de un título ambiguo ni de un clic extra. Solo una vez por post.
+  useEffect(() => {
+    if (!post || autoIdeasRef.current) return;
+    if ((post.copy && post.copy.trim()) || ideas) return;
+    autoIdeasRef.current = true;
+    handleGenerateIdeas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post?.id]);
 
   const handleUsarVariante = async (texto) => {
     setCopy(texto);
@@ -570,7 +582,7 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
               </div>
               {/* Explicación en lenguaje simple: esta pantalla no exige saber redes. */}
               <div className="rounded-2xl bg-primary/5 border border-primary/10 p-3.5 text-[12px] text-gray-600 leading-relaxed">
-                Aquí convertimos esta idea en algo listo para publicar. Te doy un <b>guion</b> de qué grabar o mostrar y <b>tres versiones</b> del texto; elige la que más te suene y la ajustas a tu gusto. Sin complicarte.
+                Aquí convertimos esta idea en algo listo para publicar. Te propongo un <b>guion</b> de qué grabar o mostrar y <b>tres versiones</b> del texto; elige la que más te suene y la ajustas a tu gusto. Sin complicarte.
               </div>
               <Button
                 className="w-full"
@@ -578,9 +590,28 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
                 isLoading={generatingIdeas}
               >
                 <SafeIcon name="Zap" className="w-4 h-4 mr-2" />
-                {ideas ? 'Dame otras ideas' : 'Dame ideas para este post'}
+                {generatingIdeas ? 'Preparando tus ideas…' : (ideas ? 'Dame otras ideas' : 'Dame ideas para este post')}
               </Button>
             </Card>
+
+            {/* Mientras se generan (incluida la auto-generación al abrir), mostramos
+                un esqueleto para que la persona sepa que las ideas vienen en camino. */}
+            {generatingIdeas && !ideas && (
+              <Card className="p-5 space-y-3 border-primary/10">
+                <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                  <SafeIcon name="Loader" className="w-3.5 h-3.5 text-primary animate-spin" /> Preparando 3 ideas para este post…
+                </p>
+                <div className="space-y-2">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="rounded-2xl border border-white/60 bg-white/50 p-4 space-y-2 animate-pulse">
+                      <div className="h-2.5 w-24 rounded-full bg-primary/15" />
+                      <div className="h-2 w-full rounded-full bg-gray-200/70" />
+                      <div className="h-2 w-4/5 rounded-full bg-gray-200/70" />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Foto → contenido: la IA lee la imagen real y propone contenido. */}
             <Card className="p-5 space-y-3 border-primary/15 bg-primary/[0.02]">
