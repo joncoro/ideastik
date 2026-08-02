@@ -13,6 +13,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import WizardAgent from '../components/WizardAgent';
 import SocialShareButton from '../components/SocialShareButton';
+import { FORMATOS, CANALES, iconoFormato, iconoCanal } from '../lib/formatos';
 
 // Fecha -> valor para <input type="datetime-local"> (YYYY-MM-DDTHH:mm, hora local).
 const toLocalInput = (d) => {
@@ -142,13 +143,14 @@ Devuelve SOLO el texto del post listo para publicar (sin comillas envolventes, s
 
   // Genera un GUION de producción + varias VARIANTES de copy para escoger.
   // Reusa el system prompt del estratega, así respeta voz, narrativa y CTAs.
-  const handleGenerateIdeas = async () => {
+  const handleGenerateIdeas = async (override = {}) => {
     if (!post) return;
     setGeneratingIdeas(true);
     try {
-      const formato = post.formato || 'Reel';
+      const formato = override.formato || post.formato || 'Reel';
+      const canal = override.canal || post.canal || 'Instagram';
       const system = buildSystemPrompt(bizConMemoria());
-      const userMsg = `Publicación del pilar "${post.pilar || 'general'}"${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}, formato ${formato}, canal ${post.canal || 'Instagram'}, gancho base "${post.gancho || ''}".
+      const userMsg = `Publicación del pilar "${post.pilar || 'general'}"${post.pilar_tipo ? ` (tipo ${post.pilar_tipo})` : ''}, formato ${formato}, canal ${canal}, gancho base "${post.gancho || ''}".
 1) GUION de producción concreto para grabar/armar esta pieza: si es Reel o Historia, 3 a 5 pasos de "qué grabar" con el texto en pantalla sugerido; si es Carrusel, el título de 4 a 6 láminas; si es post de imagen, 3 ideas visuales. Cada paso en una frase corta y accionable.
 2) Tres VARIANTES de copy con enfoques DISTINTOS (por ejemplo: historia real, dato útil, venta directa). Cada variante lista para publicar: gancho + 2 a 4 frases con saltos de línea + un CTA suave + máximo 3 hashtags.
 Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo":"string corto","pasos":["string","string"]},"variantes":[{"enfoque":"string corto","copy":"string"}]}`;
@@ -178,6 +180,23 @@ Responde SOLO con JSON válido y completo: {"guion":{"tipo":"${formato}","titulo
     setCopy(texto);
     await db.updatePost(postId, { copy: texto, status: 'READY' });
   };
+
+  // Cambiar red/formato: guarda el cambio y pide ideas adaptadas (la IA se acomoda).
+  const cambiarCampo = (campo, valor, override) => {
+    if (!post || post[campo] === valor) return;
+    setPost(p => ({ ...p, [campo]: valor }));
+    db.updatePost(post.id, { [campo]: valor }).catch(() => {});
+    setIdeas(null);
+    handleGenerateIdeas(override);
+  };
+  const cambiarCanal = (valor) => cambiarCampo('canal', valor, { canal: valor });
+  const cambiarFormato = (valor) => cambiarCampo('formato', valor, { formato: valor });
+
+  // Clase de un chip/toggle (red o formato), según esté activo.
+  const chipCls = (activo) => cn(
+    'inline-flex items-center gap-1.5 px-3 h-9 rounded-xl text-xs font-medium border transition-all active:scale-[0.97]',
+    activo ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' : 'bg-white/60 text-gray-600 border-white/70 hover:border-primary/40'
+  );
 
   // Detecta negocios técnicos / B2B / software, donde el material real no son
   // anécdotas emotivas sino decisiones, criterios, datos y casos de uso.
@@ -573,20 +592,46 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <Card className="p-6 space-y-4">
+            <Card className="p-6 space-y-5">
+              {/* Idea principal sugerida por la IA */}
               <div>
                 <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1 flex items-center gap-1.5">
-                  <SafeIcon name="Film" className="w-3 h-3" /> {post.formato || 'Publicación'} · {post.canal || 'Instagram'}
+                  <SafeIcon name="Zap" className="w-3 h-3" /> Idea sugerida para este día
                 </p>
                 <h3 className="font-bold text-lg text-gray-900 leading-snug">{post.gancho}</h3>
               </div>
-              {/* Explicación en lenguaje simple: esta pantalla no exige saber redes. */}
-              <div className="rounded-2xl bg-primary/5 border border-primary/10 p-3.5 text-[12px] text-gray-600 leading-relaxed">
-                Aquí convertimos esta idea en algo listo para publicar. Te propongo un <b>guion</b> de qué grabar o mostrar y <b>tres versiones</b> del texto; elige la que más te suene y la ajustas a tu gusto. Sin complicarte.
+
+              {/* Red social (toggle): la IA se adapta al cambiar. */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-gray-500">¿En qué red la publicas?</p>
+                <div className="flex flex-wrap gap-2">
+                  {CANALES.map(c => (
+                    <button key={c.id} onClick={() => cambiarCanal(c.id)} className={chipCls(iconoCanal(post.canal) === c.icon)}>
+                      <SafeIcon name={c.icon} className="w-3.5 h-3.5" /> {c.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Formato (toggle): la IA se adapta al cambiar. */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-gray-500">¿Qué tipo de contenido?</p>
+                <div className="flex flex-wrap gap-2">
+                  {FORMATOS.map(f => (
+                    <button key={f.id} onClick={() => cambiarFormato(f.id)} className={chipCls(iconoFormato(post.formato) === f.icon)} title={f.hint}>
+                      <SafeIcon name={f.icon} className="w-3.5 h-3.5" /> {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-primary/5 border border-primary/10 p-3.5 text-[12px] text-gray-600 leading-relaxed">
+                Cambia la red o el formato y <b>la IA vuelve a proponer ideas adaptadas</b>. Abajo eliges una versión del texto y, a la derecha, subes tu foto o creas la imagen con IA.
+              </div>
+
               <Button
                 className="w-full"
-                onClick={handleGenerateIdeas}
+                onClick={() => handleGenerateIdeas()}
                 isLoading={generatingIdeas}
               >
                 <SafeIcon name="Zap" className="w-4 h-4 mr-2" />

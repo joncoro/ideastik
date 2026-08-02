@@ -12,6 +12,7 @@ import WizardAgent from '../components/WizardAgent';
 import UpsellModal from '../components/UpsellModal';
 import TipNegocio from '../components/TipNegocio';
 import { puedeCrearMes } from '../lib/plan';
+import { iconoFormato, iconoCanal, labelFormato } from '../lib/formatos';
 import { generarIdeasMes, mapIdeasToPosts } from '../lib/parrilla';
 import { motion } from 'framer-motion';
 
@@ -287,10 +288,11 @@ export default function CalendarHub() {
                     {post.status === 'PUBLISHED' && <SafeIcon name="CheckCircle" className="w-3 h-3 text-success shrink-0 mt-0.5" />}
                     <span>{post.gancho}</span>
                   </p>
-                  <div className="flex flex-wrap items-center gap-1 mt-1 text-[9px] text-gray-400">
-                    {post.formato && <span>{post.formato}</span>}
-                    {post.canal && <span>· {post.canal}</span>}
-                    {post.hora && <span>· {post.hora}</span>}
+                  <div className="flex flex-wrap items-center gap-1 mt-1 text-[9px] text-gray-500">
+                    {post.canal && <SafeIcon name={iconoCanal(post.canal)} className="w-2.5 h-2.5 text-primary" />}
+                    {post.formato && <SafeIcon name={iconoFormato(post.formato)} className="w-2.5 h-2.5 text-gray-500" />}
+                    {post.formato && <span>{labelFormato(post.formato)}</span>}
+                    {post.hora && <span className="text-gray-400">· {post.hora}</span>}
                   </div>
                 </motion.div>
               ))}
@@ -345,10 +347,18 @@ export default function CalendarHub() {
                 {byDay[key].map(post => (
                   <div key={post.id} onClick={() => navigate(`/n/${currentBusiness.id}/post/${post.id}`)}
                     className={cn("p-3 rounded-xl cursor-pointer border-l-4 shadow-sm active:scale-[0.99] transition-transform", getPilarBorder(post.pilar_tipo), post.status === 'PUBLISHED' ? "bg-success/5 ring-1 ring-success/30" : "bg-white")}>
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                       <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full", pilarChip(post.pilar_tipo))}>{post.pilar}</span>
-                      {post.formato && <span className="text-[10px] text-gray-400">· {post.formato}</span>}
-                      {post.canal && <span className="text-[10px] text-gray-400">· {post.canal}</span>}
+                      {post.canal && (
+                        <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                          <SafeIcon name={iconoCanal(post.canal)} className="w-3 h-3 text-primary" />
+                        </span>
+                      )}
+                      {post.formato && (
+                        <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                          <SafeIcon name={iconoFormato(post.formato)} className="w-3 h-3" /> {labelFormato(post.formato)}
+                        </span>
+                      )}
                       {post.hora && <span className="text-[10px] text-gray-400">· {post.hora}</span>}
                       {post.status === 'PUBLISHED' && <span className="text-[10px] text-success font-bold flex items-center gap-0.5 ml-auto"><SafeIcon name="CheckCircle" className="w-3 h-3" /> Publicado</span>}
                     </div>
