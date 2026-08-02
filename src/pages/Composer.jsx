@@ -5,7 +5,7 @@ import { db } from '../lib/db';
 import { generarTexto, generarJSON, generarJSONConImagen } from '../lib/ia';
 import { generarImagenPost, retocarImagen, subirImagenPost } from '../lib/imagenes';
 import { buildSystemPrompt } from '../lib/parrilla';
-import { Button, Card, Textarea, Badge } from '../components/ui/Components';
+import { Button, Card, Textarea, Badge, Input } from '../components/ui/Components';
 import Spinner from '../components/ui/Spinner';
 import SafeIcon from '../common/SafeIcon';
 import { format } from 'date-fns';
@@ -13,6 +13,27 @@ import { es } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import WizardAgent from '../components/WizardAgent';
 import SocialShareButton from '../components/SocialShareButton';
+
+// Fecha -> valor para <input type="datetime-local"> (YYYY-MM-DDTHH:mm, hora local).
+const toLocalInput = (d) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+// Aplica la "hora" del post (texto libre: "19:00", "7:00 PM", "7 pm") sobre su fecha.
+const aplicarHora = (base, horaTxt) => {
+  const d = new Date(base);
+  const m = String(horaTxt || '').match(/(\d{1,2})[:.h]?(\d{2})?\s*(a\.?m\.?|p\.?m\.?)?/i);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2], 10) : 0;
+    const mer = (m[3] || '').toLowerCase();
+    if (mer.startsWith('p') && h < 12) h += 12;
+    if (mer.startsWith('a') && h === 12) h = 0;
+    if (!isNaN(h)) d.setHours(h, isNaN(min) ? 0 : min, 0, 0);
+  }
+  return d;
+};
 
 export default function Composer() {
   const { postId } = useParams();
@@ -395,6 +416,34 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
   const [pubIgMsg, setPubIgMsg] = useState(null); // { tipo, texto }
   // ¿Instagram está conectado? Entonces la publicación es directa (no asistida).
   const igConectada = redes.some(r => r.platform === 'instagram' && r.status === 'conectada');
+
+  // Publicar ahora vs. programar (fija fecha/hora y activa el recordatorio).
+  const [modoPub, setModoPub] = useState('ahora'); // 'ahora' | 'programar'
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [programando, setProgramando] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState(null); // { tipo, texto }
+
+  // Prellenar el selector con la fecha + hora propuesta del post.
+  useEffect(() => {
+    if (post?.fecha) setScheduledAt(toLocalInput(aplicarHora(post.fecha, post.hora)));
+  }, [post?.fecha, post?.hora]);
+
+  const handleProgramar = async () => {
+    if (!scheduledAt || programando) return;
+    setProgramando(true); setScheduleMsg(null);
+    try {
+      const d = new Date(scheduledAt);
+      const p = (n) => String(n).padStart(2, '0');
+      const horaTxt = `${p(d.getHours())}:${p(d.getMinutes())}`;
+      await db.updatePost(post.id, { fecha: d.toISOString(), hora: horaTxt, status: 'READY' });
+      setPost(prev => ({ ...prev, fecha: d.toISOString(), hora: horaTxt, status: 'READY' }));
+      setScheduleMsg({ tipo: 'ok', texto: `Programado para el ${format(d, "EEEE d 'de' MMMM 'a las' HH:mm", { locale: es })}. Te lo recordaremos ese día.` });
+    } catch (e) {
+      setScheduleMsg({ tipo: 'error', texto: e.message || 'No se pudo programar.' });
+    } finally {
+      setProgramando(false);
+    }
+  };
   const handlePublicarIgDirecto = async () => {
     if (pubIg) return;
     const src = imagenPreview || post?.image_url;
@@ -672,30 +721,61 @@ Responde SOLO con JSON válido y completo: {"descripcion":"string","guion":{"tip
               />
             </Card>
 
-            {/* Publica o comparte esta pieza. Un solo control despliega WhatsApp,
-                Instagram y Facebook. IG conectado publica directo; el resto es
-                asistido (preparamos imagen + texto listos para pegar). */}
-            <Card className="p-4 space-y-2.5">
+            {/* ¿Ahora o programado? "Ahora" despliega WhatsApp/IG/FB (IG conectado
+                publica directo). "Programar" fija fecha+hora y activa el recordatorio. */}
+            <Card className="p-4 space-y-3">
               <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publica o comparte esta pieza
-                {igConectada && <Badge variant="primary" className="text-[9px] uppercase ml-auto">IG directo</Badge>}
+                <SafeIcon name="Send" className="w-3.5 h-3.5 text-primary" /> Publica esta pieza
+                {igConectada && modoPub === 'ahora' && <Badge variant="primary" className="text-[9px] uppercase ml-auto">IG directo</Badge>}
               </p>
-              <SocialShareButton
-                disabled={!copy && !post.gancho}
-                items={[
-                  { key: 'whatsapp', icon: 'MessageCircle', label: 'WhatsApp', tone: 'wpp', onSelect: handleCompartirWhatsApp },
-                  { key: 'instagram', icon: 'Instagram', label: igConectada ? 'IG · directo' : 'Instagram', tone: 'ig', loading: pubIg, onSelect: () => (igConectada ? handlePublicarIgDirecto() : publicarAsistido('instagram')) },
-                  { key: 'facebook', icon: 'Facebook', label: 'Facebook', tone: 'fb', onSelect: () => publicarAsistido('facebook') },
-                ]}
-              />
-              {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
-              {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
-              {copiadoWpp && <p className="text-[11px] text-success leading-snug">Copiamos el texto por si necesitas pegarlo como leyenda.</p>}
-              <p className="text-[10px] text-gray-400 leading-snug">
-                {igConectada
-                  ? 'Instagram publica directo desde aquí (necesita una imagen guardada). WhatsApp y Facebook quedan asistidos: preparamos la imagen y el texto para pegar.'
-                  : 'WhatsApp y Facebook son asistidos: preparamos la imagen y el texto listos para pegar. Conecta Instagram en Ajustes → Redes para publicar directo.'}
-              </p>
+
+              {/* Selector Ahora / Programar */}
+              <div className="flex gap-1 bg-gray-100/70 p-1 rounded-xl">
+                {[['ahora', 'Publicar ahora'], ['programar', 'Programar']].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setModoPub(id)}
+                    className={cn('flex-1 h-9 rounded-lg text-xs font-medium transition-all', modoPub === id ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {modoPub === 'ahora' ? (
+                <>
+                  <SocialShareButton
+                    disabled={!copy && !post.gancho}
+                    items={[
+                      { key: 'whatsapp', icon: 'MessageCircle', label: 'WhatsApp', tone: 'wpp', onSelect: handleCompartirWhatsApp },
+                      { key: 'instagram', icon: 'Instagram', label: igConectada ? 'IG · directo' : 'Instagram', tone: 'ig', loading: pubIg, onSelect: () => (igConectada ? handlePublicarIgDirecto() : publicarAsistido('instagram')) },
+                      { key: 'facebook', icon: 'Facebook', label: 'Facebook', tone: 'fb', onSelect: () => publicarAsistido('facebook') },
+                    ]}
+                  />
+                  {publishMsg && <p className="text-[11px] text-success leading-snug">{publishMsg}</p>}
+                  {pubIgMsg && <p className={cn('text-[11px] leading-snug', pubIgMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{pubIgMsg.texto}</p>}
+                  {copiadoWpp && <p className="text-[11px] text-success leading-snug">Copiamos el texto por si necesitas pegarlo como leyenda.</p>}
+                  <p className="text-[10px] text-gray-400 leading-snug">
+                    {igConectada
+                      ? 'Instagram publica directo desde aquí (necesita una imagen guardada). WhatsApp y Facebook quedan asistidos: preparamos la imagen y el texto para pegar.'
+                      : 'WhatsApp y Facebook son asistidos: preparamos la imagen y el texto listos para pegar. Conecta Instagram en Ajustes → Redes para publicar directo.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-medium text-gray-500">Fecha y hora</label>
+                    <Input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="h-11" />
+                  </div>
+                  <Button className="w-full" onClick={handleProgramar} isLoading={programando} disabled={!scheduledAt}>
+                    <SafeIcon name="Calendar" className="w-4 h-4 mr-2" /> Programar publicación
+                  </Button>
+                  {scheduleMsg && <p className={cn('text-[11px] leading-snug', scheduleMsg.tipo === 'ok' ? 'text-success' : 'text-red-500')}>{scheduleMsg.texto}</p>}
+                  <p className="text-[10px] text-gray-400 leading-snug">
+                    Guardamos la fecha en tu calendario y te enviamos un recordatorio ese día para que la publiques. (La publicación automática llegará más adelante.)
+                  </p>
+                </>
+              )}
             </Card>
 
             {/* Respaldo admin: publicar con el token de secreto del servidor cuando
