@@ -12,5 +12,9 @@ export const PLAN_LIMITS = {
 
 export const limitesDe = (profile) => PLAN_LIMITS[profile?.plan] || PLAN_LIMITS.FREE;
 export const esMensual = (profile) => (profile?.plan || 'FREE') === 'MENSUAL';
+export const tieneCreditos = (profile) => (profile?.credits || 0) > 0;
 export const puedeCrearNegocio = (profile, cantidadActual = 0) => cantidadActual < limitesDe(profile).negocios;
-export const puedeCrearMes = (profile, gridsActuales = 0) => gridsActuales < limitesDe(profile).meses;
+// Puede generar la parrilla del mes si le queda cupo por plan O si tiene créditos
+// (p. ej. redimió un código de regalo): tener crédito habilita generar meses.
+export const puedeCrearMes = (profile, gridsActuales = 0) =>
+  gridsActuales < limitesDe(profile).meses || tieneCreditos(profile);
