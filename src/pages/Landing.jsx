@@ -245,10 +245,12 @@ export default function Landing() {
       {/* FOOTER */}
       <footer className="max-w-6xl mx-auto w-full px-6 py-10 border-t border-white/40 flex flex-col sm:flex-row items-center justify-between gap-4">
         <h1 className="text-lg font-heading font-bold text-primary tracking-tighter">ideastik<span className="text-success">.</span></h1>
-        <div className="flex items-center gap-6 text-sm text-gray-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-500">
           <button onClick={() => scrollTo('como')} className="hover:text-gray-900 transition-colors">Cómo funciona</button>
           <button onClick={() => scrollTo('precios')} className="hover:text-gray-900 transition-colors">Precios</button>
           <button onClick={goLogin} className="hover:text-gray-900 transition-colors">Entrar</button>
+          <a href="/privacidad" className="hover:text-gray-900 transition-colors">Privacidad</a>
+          <a href="/eliminacion-datos" className="hover:text-gray-900 transition-colors">Eliminación de datos</a>
         </div>
         <p className="text-xs text-gray-400">© 2026 Ideastik</p>
       </footer>

@@ -381,6 +381,9 @@ export default function Settings() {
             <p className="text-sm text-gray-600 leading-relaxed">
               Conecta tus redes para tenerlo listo. Hoy la publicación es <b>asistida</b> (te preparamos la foto y el texto y abres la app). La <b>publicación directa</b> desde Ideastik se activará apenas Meta apruebe la integración, sin que tengas que hacer nada más.
             </p>
+            <p className="text-[11px] text-gray-400 mt-2">
+              Al conectar aceptas nuestra <a href="/privacidad" target="_blank" rel="noopener" className="text-primary hover:underline">Política de Privacidad</a>. Puedes retirar el acceso cuando quieras; consulta la <a href="/eliminacion-datos" target="_blank" rel="noopener" className="text-primary hover:underline">eliminación de datos</a>.
+            </p>
           </Card>
 
           {[

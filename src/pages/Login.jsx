@@ -91,7 +91,7 @@ export default function Login() {
         </form>
 
         <div className="mt-6 text-center">
-          <button 
+          <button
             onClick={() => setIsSignUp(!isSignUp)}
             className="text-sm text-primary font-medium hover:underline"
           >
@@ -99,6 +99,12 @@ export default function Login() {
           </button>
         </div>
       </Card>
+
+      <p className="mt-6 text-center text-xs text-gray-400 max-w-sm">
+        Al continuar aceptas nuestra{' '}
+        <a href="/privacidad" target="_blank" rel="noopener" className="text-primary hover:underline">Política de Privacidad</a>{' '}y la{' '}
+        <a href="/eliminacion-datos" target="_blank" rel="noopener" className="text-primary hover:underline">eliminación de datos</a>.
+      </p>
     </div>
   );
 }
